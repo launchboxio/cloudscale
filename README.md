@@ -9,4 +9,3 @@ CloudScale is an open source, highly available, load balancer platform for on-pr
 - SSL Certificate Management (Termination and Origination)
 - Access through UI & API 
 - Native Kubernetes Integration for Service Management 
- 
