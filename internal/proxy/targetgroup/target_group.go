@@ -1,4 +1,4 @@
-package target_group
+package targetgroup
 
 import (
 	"github.com/launchboxio/cloudscale/internal/proxy/backend"
