@@ -15,7 +15,8 @@ type certificateCtrl struct {
 }
 
 type Certificate struct {
-	Id   string `json:"id"`
+	Id   string `json:"id,omitempty"`
+	Name string `json:"name"`
 	Cert []byte `json:"cert"`
 	Key  []byte `json:"key"`
 }
