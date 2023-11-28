@@ -5,6 +5,7 @@ import (
 	"github.com/launchboxio/cloudscale/internal/proxy/backend"
 	"github.com/launchboxio/cloudscale/internal/proxy/features/stickiness"
 	"github.com/launchboxio/cloudscale/internal/proxy/targetgroup"
+	"sync"
 )
 
 type ActionType string
@@ -25,6 +26,10 @@ type baseListener struct {
 
 	Default *targetgroup.TargetGroup
 	Rules   Rule
+
+	mux    sync.Mutex
+	closed bool
+	cond   *sync.Cond
 }
 
 type Rule struct {

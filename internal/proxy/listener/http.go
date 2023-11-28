@@ -1,6 +1,9 @@
 package listener
 
-import "github.com/launchboxio/cloudscale/internal/proxy/backend"
+import (
+	"github.com/launchboxio/cloudscale/internal/proxy/backend"
+	"net/http"
+)
 
 type HttpListenerOptions struct {
 }
@@ -14,5 +17,10 @@ func NewHttpListener(opts *HttpListenerOptions) *HttpListener {
 }
 
 func (t *HttpListener) Send(dst *backend.Backend) {
-
+	peer := lb.serverPool.GetNextValidPeer()
+	if peer != nil {
+		peer.Serve(w, r)
+		return
+	}
+	http.Error(w, "Service not available", http.StatusServiceUnavailable)
 }
