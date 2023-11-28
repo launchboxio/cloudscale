@@ -19,3 +19,15 @@ type Backend struct {
 	// Whether backend instance is ready
 	ready bool
 }
+
+func (b *Backend) IsHealthy() bool {
+	return b.IsHealthy()
+}
+
+func (b *Backend) IsReady() bool {
+	return b.IsReady()
+}
+
+func (b *Backend) CurrentConnections() int {
+	return b.connections
+}

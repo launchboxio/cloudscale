@@ -11,9 +11,28 @@ type RoundRobin struct {
 	baseStrategy
 
 	mux            sync.RWMutex
-	currentBackend *backend.Backend
+	currentBackend int
 }
 
 func (rr *RoundRobin) Decide() (*backend.Backend, error) {
-	return rr.Backends[0], nil
+	for i := 0; i < len(rr.Backends); i++ {
+		next := rr.selectNext()
+		if next.IsHealthy() {
+			return next, nil
+		}
+	}
+	return nil, nil
+}
+
+func (rr *RoundRobin) selectNext() *backend.Backend {
+	rr.withLock(func() {
+		rr.currentBackend = (rr.currentBackend + 1) % len(rr.Backends)
+	})
+	return rr.Backends[rr.currentBackend]
+}
+
+func (rr *RoundRobin) withLock(f func()) {
+	rr.mux.Lock()
+	f()
+	rr.mux.Unlock()
 }

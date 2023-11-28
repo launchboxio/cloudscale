@@ -3,7 +3,15 @@ package listener
 import (
 	"crypto/tls"
 	"github.com/launchboxio/cloudscale/internal/proxy/backend"
+	"github.com/launchboxio/cloudscale/internal/proxy/features/stickiness"
 	"github.com/launchboxio/cloudscale/internal/proxy/targetgroup"
+)
+
+type ActionType string
+
+const (
+	ActionTypeForward  ActionType = "forward"
+	ActionTypeRedirect            = "redirect"
 )
 
 type Listener interface {
@@ -16,4 +24,43 @@ type baseListener struct {
 	Tls      tls.Config
 
 	Default *targetgroup.TargetGroup
+	Rules   Rule
+}
+
+type Rule struct {
+	Priority uint16
+	Action   Action
+}
+
+type Condition struct {
+	HostHeader        []string
+	HttpHeader        []string
+	HttpRequestMethod []string
+	PathPattern       []string
+	SourceIp          []string
+}
+
+type Action struct {
+	Type     string
+	Forward  ForwardAction
+	Redirect RedirectAction
+}
+
+type ForwardAction struct {
+	TargetGroup TargetGroupForwardAction
+	Stickiness  stickiness.Stickiness
+}
+
+type TargetGroupForwardAction struct {
+	TargetGroup targetgroup.TargetGroup
+	Weight      uint8
+}
+
+type RedirectAction struct {
+	Host       string
+	Port       string
+	Path       string
+	Protocol   string
+	Query      string
+	StatusCode string
 }
