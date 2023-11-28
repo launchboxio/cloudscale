@@ -12,6 +12,9 @@ handle proxying traffic to the destination servers
 An optional component that can be deployed to backend servers, which transmits current resource usage data to the controllers. 
 Used for the Resource Usage strategy
 
+#### Hosts 
+
+TBD
 #### Listeners 
 
 An incoming endpoint that receives connections

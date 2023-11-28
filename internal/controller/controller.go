@@ -2,13 +2,15 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	serverv3 "github.com/envoyproxy/go-control-plane/pkg/server/v3"
+	"github.com/launchboxio/cloudscale/internal/api"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"net"
 	"sync"
+
+	bolt "go.etcd.io/bbolt"
 
 	discoverygrpc "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
@@ -78,12 +80,12 @@ func (cb *Callbacks) OnDeltaStreamOpen(ctx context.Context, id int64, typ string
 	return nil
 }
 
-func (c *Callbacks) OnStreamDeltaRequest(i int64, request *discoverygrpc.DeltaDiscoveryRequest) error {
+func (cb *Callbacks) OnStreamDeltaRequest(i int64, request *discoverygrpc.DeltaDiscoveryRequest) error {
 	log.Infof("OnStreamDeltaRequest... %v  of type %s", i, request)
 	return nil
 }
 
-func (c *Callbacks) OnStreamDeltaResponse(i int64, request *discoverygrpc.DeltaDiscoveryRequest, response *discoverygrpc.DeltaDiscoveryResponse) {
+func (cb *Callbacks) OnStreamDeltaResponse(i int64, request *discoverygrpc.DeltaDiscoveryRequest, response *discoverygrpc.DeltaDiscoveryResponse) {
 	log.Infof("OnStreamDeltaResponse... %v  of type %s", i, request)
 }
 
@@ -95,13 +97,53 @@ type Callbacks struct {
 	mu       sync.Mutex
 }
 
+type Options struct {
+	GrpcAddress string
+	HttpAddress string
+}
+
+func New(opts *Options) *Controller {
+	return &Controller{
+		options: opts,
+	}
+}
+
 type Controller struct {
+	options *Options
 }
 
 // Run will start the controller service, which exposes
 // an xDS endpoint for Envoy configuration. It will also
 // start the API server for handling external configurations
 func (c *Controller) Run() error {
+
+	// Open our database connection
+	db, err := bolt.Open("./bolt", 0600, nil)
+	if err != nil {
+		return err
+	}
+
+	// Ensure our buckets exist
+	tx, err := db.Begin(true)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	for _, b := range []string{
+		api.ListenersBucket,
+		api.CertificateBucket,
+	} {
+		log.Infof("Ensuring bucket %s exists", b)
+		if _, err := tx.CreateBucketIfNotExists([]byte(b)); err != nil {
+			return err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	defer db.Close()
 
 	ctx := context.Background()
 	signal := make(chan struct{})
@@ -114,6 +156,11 @@ func (c *Controller) Run() error {
 	cache = cachev3.NewSnapshotCache(true, cachev3.IDHash{}, nil)
 	srv := serverv3.NewServer(ctx, cache, cb)
 
+	go func() {
+		if err := c.runApiServer(db); err != nil {
+			log.WithError(err).Error("Failed starting API server")
+		}
+	}()
 	c.runXdsServer(ctx, srv)
 
 	return nil
@@ -123,7 +170,7 @@ func (c *Controller) runXdsServer(ctx context.Context, srv serverv3.Server) {
 	var grpcOptions []grpc.ServerOption
 	grpcServer := grpc.NewServer(grpcOptions...)
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", 10001))
+	lis, err := net.Listen("tcp", c.options.GrpcAddress)
 	if err != nil {
 		log.WithError(err).Fatal("Failed listening to port")
 		return
@@ -132,9 +179,10 @@ func (c *Controller) runXdsServer(ctx context.Context, srv serverv3.Server) {
 	discoverygrpc.RegisterAggregatedDiscoveryServiceServer(grpcServer, srv)
 
 	log.Info("Management server listening")
+
 	go func() {
 		if err = grpcServer.Serve(lis); err != nil {
-			fmt.Println(err)
+			log.WithError(err).Error("Failed running GRPC server")
 		}
 	}()
 	<-ctx.Done()
@@ -142,6 +190,7 @@ func (c *Controller) runXdsServer(ctx context.Context, srv serverv3.Server) {
 	grpcServer.GracefulStop()
 }
 
-func (c *Controller) runApiServer() error {
-	return nil
+func (c *Controller) runApiServer(db *bolt.DB) error {
+	srv := api.New(db)
+	return srv.Run(c.options.HttpAddress)
 }
