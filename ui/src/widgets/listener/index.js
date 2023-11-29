@@ -20,9 +20,6 @@ const Listener = () => {
     })
   }
   return (
-    <Card>
-
-    </Card>
     <>
       <h5>Listeners</h5>
       <table>
