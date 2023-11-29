@@ -1,19 +1,13 @@
 package api
 
 import (
-	"encoding/json"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	bolt "go.etcd.io/bbolt"
 	"net"
 	"net/http"
 )
 
-const TargetGroupsBucket = "TargetGroups"
-
 type targetGroupCtrl struct {
-	db      *bolt.DB
-	channel chan struct{}
+	db *Service
 }
 
 type TargetGroup struct {
@@ -28,8 +22,8 @@ type TargetGroupAttachment struct {
 	Port          uint16 `json:"port"`
 }
 
-func registerTargetGroupRoutes(r *gin.Engine, db *bolt.DB, eventChannel chan struct{}) {
-	ctrl := targetGroupCtrl{db, eventChannel}
+func registerTargetGroupRoutes(r *gin.Engine, db *Service) {
+	ctrl := targetGroupCtrl{db}
 	c := r.Group("/target_groups")
 	c.GET("", ctrl.list)
 	c.POST("", ctrl.create)
@@ -39,18 +33,7 @@ func registerTargetGroupRoutes(r *gin.Engine, db *bolt.DB, eventChannel chan str
 }
 
 func (ctrl *targetGroupCtrl) list(c *gin.Context) {
-	var targetGroups = []TargetGroup{}
-	err := ctrl.db.View(func(tx *bolt.Tx) error {
-		return tx.Bucket([]byte(TargetGroupsBucket)).ForEach(func(k, v []byte) error {
-			var targetGroup TargetGroup
-			if err := json.Unmarshal(v, &targetGroup); err != nil {
-				return err
-			}
-			targetGroup.Id = string(k)
-			targetGroups = append(targetGroups, targetGroup)
-			return nil
-		})
-	})
+	targetGroups, err := ctrl.db.ListTargetGroups()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -60,23 +43,7 @@ func (ctrl *targetGroupCtrl) list(c *gin.Context) {
 }
 
 func (ctrl *targetGroupCtrl) show(c *gin.Context) {
-	var targetGroup *TargetGroup
-	err := ctrl.db.View(func(tx *bolt.Tx) error {
-		data := tx.Bucket([]byte(TargetGroupsBucket)).Get([]byte(c.Param("targetGroupId")))
-		if data == nil {
-			return nil
-		}
-
-		targetGroup = &TargetGroup{}
-		err := json.Unmarshal(data, targetGroup)
-		if err != nil {
-			return err
-		}
-
-		targetGroup.Id = c.Param("targetGroupId")
-		return nil
-	})
-
+	targetGroup, err := ctrl.db.GetTargetGroup(c.Param("targetGroupId"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -91,34 +58,25 @@ func (ctrl *targetGroupCtrl) show(c *gin.Context) {
 }
 
 func (ctrl *targetGroupCtrl) create(c *gin.Context) {
-	var input TargetGroup
+	var input *TargetGroup
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	input.Id = uuid.New().String()
-	err := ctrl.db.Update(func(tx *bolt.Tx) error {
-		data, err := json.Marshal(input)
-		if err != nil {
-			return err
-		}
-
-		return tx.Bucket([]byte(TargetGroupsBucket)).Put([]byte(input.Id), data)
-	})
+	group, err := ctrl.db.CreateTargetGroup(input)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctrl.channel <- struct{}{}
-	c.JSON(http.StatusOK, gin.H{"target_group": input})
+	c.JSON(http.StatusOK, gin.H{"target_group": group})
 }
 
 func (ctrl *targetGroupCtrl) update(c *gin.Context) {
 	targetGroupId := c.Param("targetGroupId")
-	var input TargetGroup
+	var input *TargetGroup
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -126,34 +84,22 @@ func (ctrl *targetGroupCtrl) update(c *gin.Context) {
 	}
 
 	input.Id = targetGroupId
-	err := ctrl.db.Update(func(tx *bolt.Tx) error {
-		data, err := json.Marshal(input)
-		if err != nil {
-			return err
-		}
-
-		return tx.Bucket([]byte(TargetGroupsBucket)).Put([]byte(targetGroupId), data)
-	})
+	group, err := ctrl.db.UpdateTargetGroup(input)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctrl.channel <- struct{}{}
-	c.JSON(http.StatusOK, gin.H{"target_group": input})
+	c.JSON(http.StatusOK, gin.H{"target_group": group})
 }
 
 func (ctrl *targetGroupCtrl) delete(c *gin.Context) {
 	targetGroupId := c.Param("targetGroupId")
-	err := ctrl.db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket([]byte(TargetGroupsBucket)).Delete([]byte(targetGroupId))
-	})
-	if err != nil {
+	if err := ctrl.db.DestroyTargetGroup(targetGroupId); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctrl.channel <- struct{}{}
 	c.Status(http.StatusNoContent)
 }

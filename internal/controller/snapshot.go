@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
 	clusterv3 "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	endpointv3 "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
@@ -13,7 +12,6 @@ import (
 	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 	resourcev3 "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	"github.com/launchboxio/cloudscale/internal/api"
-	"go.etcd.io/bbolt"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"time"
@@ -199,48 +197,29 @@ func generateSnapshot(info *SnapshotInfo) (*cachev3.Snapshot, error) {
 	)
 }
 
-func buildSnapshot(db *bbolt.DB) (*cachev3.Snapshot, error) {
-	info := &SnapshotInfo{
-		Version: "1",
+func buildSnapshot(svc *api.Service) (*cachev3.Snapshot, error) {
+
+	certificates, err := svc.ListCertificates()
+	if err != nil {
+		return nil, err
 	}
-	db.View(func(tx *bbolt.Tx) error {
-		if err := tx.Bucket([]byte(api.CertificateBucket)).ForEach(func(k, v []byte) error {
-			var certificate api.Certificate
-			if err := json.Unmarshal(v, &certificate); err != nil {
-				return err
-			}
-			certificate.Id = string(k)
-			info.Certificates = append(info.Certificates, &certificate)
-			return nil
-		}); err != nil {
-			return err
-		}
 
-		if err := tx.Bucket([]byte(api.ListenersBucket)).ForEach(func(k, v []byte) error {
-			var listener api.Listener
-			if err := json.Unmarshal(v, &listener); err != nil {
-				return err
-			}
-			listener.Id = string(k)
-			info.Listeners = append(info.Listeners, &listener)
-			return nil
-		}); err != nil {
-			return err
-		}
+	listeners, err := svc.ListListeners()
+	if err != nil {
+		return nil, err
+	}
 
-		if err := tx.Bucket([]byte(api.TargetGroupsBucket)).ForEach(func(k, v []byte) error {
-			var targetGroup api.TargetGroup
-			if err := json.Unmarshal(v, &targetGroup); err != nil {
-				return err
-			}
-			targetGroup.Id = string(k)
-			info.TargetGroups = append(info.TargetGroups, &targetGroup)
-			return nil
-		}); err != nil {
-			return err
-		}
+	targetGroups, err := svc.ListTargetGroups()
+	if err != nil {
+		return nil, err
+	}
 
-		return nil
-	})
+	info := &SnapshotInfo{
+		Version:      "1",
+		TargetGroups: targetGroups,
+		Certificates: certificates,
+		Listeners:    listeners,
+	}
+
 	return generateSnapshot(info)
 }

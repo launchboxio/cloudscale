@@ -1,20 +1,13 @@
 package api
 
 import (
-	"encoding/json"
-	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	bolt "go.etcd.io/bbolt"
-	"net"
-	"net/http"
+  "github.com/gin-gonic/gin"
+  "net"
+  "net/http"
 )
 
-const ListenersBucket = "Listeners"
-
 type listenerCtrl struct {
-	db      *bolt.DB
-	channel chan struct{}
+	db *Service
 }
 
 type Listener struct {
@@ -68,8 +61,8 @@ type Condition struct {
 	SourceIp          []string `json:"source_ip,omitempty"`
 }
 
-func registerListenerRoutes(r *gin.Engine, db *bolt.DB, channel chan struct{}) {
-	ctrl := listenerCtrl{db, channel}
+func registerListenerRoutes(r *gin.Engine, db *Service) {
+	ctrl := listenerCtrl{db}
 	l := r.Group("/listeners")
 	l.GET("", ctrl.list)
 	l.POST("", ctrl.create)
@@ -79,22 +72,7 @@ func registerListenerRoutes(r *gin.Engine, db *bolt.DB, channel chan struct{}) {
 }
 
 func (ctrl *listenerCtrl) list(c *gin.Context) {
-	var listeners []Listener
-	if ctrl.db == nil {
-		fmt.Println("Database not initialized")
-	}
-	err := ctrl.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(ListenersBucket))
-		return b.ForEach(func(k, v []byte) error {
-			var listener Listener
-			if err := json.Unmarshal(v, &listener); err != nil {
-				return err
-			}
-			listener.Id = string(k)
-			listeners = append(listeners, listener)
-			return nil
-		})
-	})
+	listeners, err := ctrl.db.ListListeners()
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -109,21 +87,7 @@ func (ctrl *listenerCtrl) list(c *gin.Context) {
 }
 
 func (ctrl *listenerCtrl) show(c *gin.Context) {
-	var listener *Listener
-
-	err := ctrl.db.View(func(tx *bolt.Tx) error {
-		data := tx.Bucket([]byte(ListenersBucket)).Get([]byte(c.Param("listenerId")))
-		if data == nil {
-			return nil
-		}
-		listener = &Listener{}
-		err := json.Unmarshal(data, listener)
-		if err != nil {
-			return err
-		}
-		listener.Id = c.Param("listenerId")
-		return nil
-	})
+	listener, err := ctrl.db.GetListener(c.Param("listenerId"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -138,32 +102,24 @@ func (ctrl *listenerCtrl) show(c *gin.Context) {
 }
 
 func (ctrl *listenerCtrl) create(c *gin.Context) {
-	var input Listener
+	var input *Listener
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	input.Id = uuid.New().String()
-	err := ctrl.db.Update(func(tx *bolt.Tx) error {
-		data, err := json.Marshal(input)
-		if err != nil {
-			return err
-		}
-		return tx.Bucket([]byte(ListenersBucket)).Put([]byte(input.Id), data)
-	})
+	listener, err := ctrl.db.CreateListener(input)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctrl.channel <- struct{}{}
-	c.JSON(http.StatusOK, gin.H{"listener": input})
+	c.JSON(http.StatusOK, gin.H{"listener": listener})
 }
 
 func (ctrl *listenerCtrl) update(c *gin.Context) {
 	listenerId := c.Param("listenerId")
-	var input Listener
+	var input *Listener
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -171,34 +127,22 @@ func (ctrl *listenerCtrl) update(c *gin.Context) {
 	}
 
 	input.Id = listenerId
-	err := ctrl.db.Update(func(tx *bolt.Tx) error {
-		data, err := json.Marshal(input)
-		if err != nil {
-			return err
-		}
-
-		return tx.Bucket([]byte(ListenersBucket)).Put([]byte(listenerId), data)
-	})
-
+	listener, err := ctrl.db.UpdateListener(input)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctrl.channel <- struct{}{}
-	c.JSON(http.StatusOK, gin.H{"listener": input})
+	c.JSON(http.StatusOK, gin.H{"listener": listener})
 }
 
 func (ctrl *listenerCtrl) delete(c *gin.Context) {
 	listenerId := c.Param("listenerId")
-	err := ctrl.db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket([]byte(ListenersBucket)).Delete([]byte(listenerId))
-	})
-	if err != nil {
+
+	if err := ctrl.db.DestroyListener(listenerId); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctrl.channel <- struct{}{}
 	c.Status(http.StatusNoContent)
 }

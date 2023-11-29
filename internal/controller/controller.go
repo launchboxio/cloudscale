@@ -123,27 +123,6 @@ func (c *Controller) Run() error {
 		return err
 	}
 
-	// Ensure our buckets exist
-	tx, err := db.Begin(true)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	for _, b := range []string{
-		api.ListenersBucket,
-		api.CertificateBucket,
-		api.TargetGroupsBucket,
-	} {
-		log.Infof("Ensuring bucket %s exists", b)
-		if _, err := tx.CreateBucketIfNotExists([]byte(b)); err != nil {
-			return err
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return err
-	}
 	defer db.Close()
 
 	ctx := context.Background()
@@ -155,16 +134,17 @@ func (c *Controller) Run() error {
 		Requests: 0,
 	}
 
+	svc := &api.Service{Db: db}
 	cache = cachev3.NewSnapshotCache(true, cachev3.IDHash{}, nil)
 	srv := serverv3.NewServer(ctx, cache, cb)
 
 	go func() {
-		if err := c.runApiServer(db, event); err != nil {
+		if err := c.runApiServer(svc, event); err != nil {
 			log.WithError(err).Error("Failed starting API server")
 		}
 	}()
 
-	go c.runSnapshotHandler(ctx, db, event)
+	go c.runSnapshotHandler(ctx, svc, event)
 
 	c.runXdsServer(ctx, srv)
 
@@ -195,21 +175,21 @@ func (c *Controller) runXdsServer(ctx context.Context, srv serverv3.Server) {
 	grpcServer.GracefulStop()
 }
 
-func (c *Controller) runApiServer(db *bolt.DB, channel chan struct{}) error {
-	srv := api.New(db, channel)
+func (c *Controller) runApiServer(svc *api.Service, channel chan struct{}) error {
+	srv := api.New(svc, channel)
 	return srv.Run(c.options.HttpAddress)
 }
 
-func (c *Controller) runSnapshotHandler(ctx context.Context, db *bolt.DB, channel chan struct{}) {
+func (c *Controller) runSnapshotHandler(ctx context.Context, svc *api.Service, channel chan struct{}) {
 	log.Info("Generating initial snapshot")
-	if err := handleSnapshotEvent(db); err != nil {
+	if err := handleSnapshotEvent(svc); err != nil {
 		log.WithError(err).Error("Failed generating snapshot")
 	}
 	for {
 		// check on channel
 		select {
 		case <-channel:
-			if err := handleSnapshotEvent(db); err != nil {
+			if err := handleSnapshotEvent(svc); err != nil {
 				log.WithError(err).Error("Failed generating snapshot")
 				continue
 			}
@@ -222,8 +202,8 @@ func (c *Controller) runSnapshotHandler(ctx context.Context, db *bolt.DB, channe
 	}
 }
 
-func handleSnapshotEvent(db *bolt.DB) error {
-	snap, err := buildSnapshot(db)
+func handleSnapshotEvent(svc *api.Service) error {
+	snap, err := buildSnapshot(svc)
 	if err != nil {
 		return err
 	}
