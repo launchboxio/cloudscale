@@ -1,3 +1,6 @@
 .idea
 bolt
 cloudscale
+
+ui/build
+ui/node_modules

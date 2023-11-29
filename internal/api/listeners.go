@@ -1,9 +1,9 @@
 package api
 
 import (
-  "github.com/gin-gonic/gin"
-  "net"
-  "net/http"
+	"github.com/gin-gonic/gin"
+	"net"
+	"net/http"
 )
 
 type listenerCtrl struct {

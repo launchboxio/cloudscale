@@ -25,6 +25,7 @@ func New(svc *Service, channel chan struct{}) *Api {
 }
 
 func (a *Api) registerRoutes() {
+	a.srv.Static("/ui", "./ui/build")
 	a.srv.GET("/healthy", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "pong"})
 	})
