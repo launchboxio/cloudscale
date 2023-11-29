@@ -5,21 +5,31 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	bolt "go.etcd.io/bbolt"
+	"net"
 	"net/http"
 )
 
 const TargetGroupsBucket = "TargetGroups"
 
 type targetGroupCtrl struct {
-	db *bolt.DB
+	db      *bolt.DB
+	channel chan struct{}
 }
 
 type TargetGroup struct {
-	Id string `json:"id"`
+	Id   string `json:"id"`
+	Name string `json:"name"`
 }
 
-func registerTargetGroupRoutes(r *gin.Engine, db *bolt.DB) {
-	ctrl := targetGroupCtrl{db}
+type TargetGroupAttachment struct {
+	Id            string `json:"id"`
+	TargetGroupId string `json:"target_group_id"`
+	IpAddress     net.IP `json:"ip_address"`
+	Port          uint16 `json:"port"`
+}
+
+func registerTargetGroupRoutes(r *gin.Engine, db *bolt.DB, eventChannel chan struct{}) {
+	ctrl := targetGroupCtrl{db, eventChannel}
 	c := r.Group("/target_groups")
 	c.GET("", ctrl.list)
 	c.POST("", ctrl.create)
@@ -102,6 +112,7 @@ func (ctrl *targetGroupCtrl) create(c *gin.Context) {
 		return
 	}
 
+	ctrl.channel <- struct{}{}
 	c.JSON(http.StatusOK, gin.H{"target_group": input})
 }
 
@@ -129,6 +140,7 @@ func (ctrl *targetGroupCtrl) update(c *gin.Context) {
 		return
 	}
 
+	ctrl.channel <- struct{}{}
 	c.JSON(http.StatusOK, gin.H{"target_group": input})
 }
 
@@ -142,5 +154,6 @@ func (ctrl *targetGroupCtrl) delete(c *gin.Context) {
 		return
 	}
 
+	ctrl.channel <- struct{}{}
 	c.Status(http.StatusNoContent)
 }

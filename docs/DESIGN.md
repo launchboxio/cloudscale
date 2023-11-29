@@ -17,8 +17,10 @@ Used for the Resource Usage strategy
 TBD
 #### Listeners 
 
-An incoming endpoint that receives connections
+An incoming endpoint that receives connections (mapped to an Envoy Listener)
 
 #### Target Groups 
 
 Configured destinations that incoming [Listener](#listeners-) traffic is routed to
+
+Mapped to a combination of `Cluster` and `Upstream` resources in Envoy

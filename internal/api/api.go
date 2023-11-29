@@ -12,14 +12,16 @@ type Options struct {
 type Api struct {
 	srv *gin.Engine
 	db  *bolt.DB
+
+	eventChan chan struct{}
 }
 
-func New(db *bolt.DB) *Api {
+func New(db *bolt.DB, channel chan struct{}) *Api {
 	r := gin.Default()
 
 	r.Use(Logger)
 
-	api := &Api{srv: r, db: db}
+	api := &Api{srv: r, db: db, eventChan: channel}
 	api.registerRoutes()
 
 	return api
@@ -30,9 +32,9 @@ func (a *Api) registerRoutes() {
 		c.JSON(http.StatusOK, gin.H{"message": "pong"})
 	})
 
-	registerListenerRoutes(a.srv, a.db)
-	registerCertificateRoutes(a.srv, a.db)
-	registerTargetGroupRoutes(a.srv, a.db)
+	registerListenerRoutes(a.srv, a.db, a.eventChan)
+	registerCertificateRoutes(a.srv, a.db, a.eventChan)
+	registerTargetGroupRoutes(a.srv, a.db, a.eventChan)
 }
 
 func (a *Api) Run(bindAddress string) error {

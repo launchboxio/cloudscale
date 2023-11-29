@@ -11,7 +11,8 @@ import (
 const CertificateBucket = "Certificates"
 
 type certificateCtrl struct {
-	db *bolt.DB
+	db      *bolt.DB
+	channel chan struct{}
 }
 
 type Certificate struct {
@@ -21,8 +22,8 @@ type Certificate struct {
 	Key  []byte `json:"key"`
 }
 
-func registerCertificateRoutes(r *gin.Engine, db *bolt.DB) {
-	ctrl := certificateCtrl{db}
+func registerCertificateRoutes(r *gin.Engine, db *bolt.DB, channel chan struct{}) {
+	ctrl := certificateCtrl{db, channel}
 	c := r.Group("/certificates")
 	c.GET("", ctrl.list)
 	c.POST("", ctrl.create)

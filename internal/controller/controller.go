@@ -133,6 +133,7 @@ func (c *Controller) Run() error {
 	for _, b := range []string{
 		api.ListenersBucket,
 		api.CertificateBucket,
+		api.TargetGroupsBucket,
 	} {
 		log.Infof("Ensuring bucket %s exists", b)
 		if _, err := tx.CreateBucketIfNotExists([]byte(b)); err != nil {
@@ -147,6 +148,7 @@ func (c *Controller) Run() error {
 
 	ctx := context.Background()
 	signal := make(chan struct{})
+	event := make(chan struct{})
 	cb := &Callbacks{
 		Signal:   signal,
 		Fetches:  0,
@@ -157,10 +159,13 @@ func (c *Controller) Run() error {
 	srv := serverv3.NewServer(ctx, cache, cb)
 
 	go func() {
-		if err := c.runApiServer(db); err != nil {
+		if err := c.runApiServer(db, event); err != nil {
 			log.WithError(err).Error("Failed starting API server")
 		}
 	}()
+
+	go c.runSnapshotHandler(ctx, db, event)
+
 	c.runXdsServer(ctx, srv)
 
 	return nil
@@ -190,7 +195,40 @@ func (c *Controller) runXdsServer(ctx context.Context, srv serverv3.Server) {
 	grpcServer.GracefulStop()
 }
 
-func (c *Controller) runApiServer(db *bolt.DB) error {
-	srv := api.New(db)
+func (c *Controller) runApiServer(db *bolt.DB, channel chan struct{}) error {
+	srv := api.New(db, channel)
 	return srv.Run(c.options.HttpAddress)
+}
+
+func (c *Controller) runSnapshotHandler(ctx context.Context, db *bolt.DB, channel chan struct{}) {
+	log.Info("Generating initial snapshot")
+	if err := handleSnapshotEvent(db); err != nil {
+		log.WithError(err).Error("Failed generating snapshot")
+	}
+	for {
+		// check on channel
+		select {
+		case <-channel:
+			if err := handleSnapshotEvent(db); err != nil {
+				log.WithError(err).Error("Failed generating snapshot")
+				continue
+			}
+			log.Info("New Snapshot saved successfully")
+		case <-ctx.Done():
+			return
+		default:
+		}
+		// continue working
+	}
+}
+
+func handleSnapshotEvent(db *bolt.DB) error {
+	snap, err := buildSnapshot(db)
+	if err != nil {
+		return err
+	}
+	if err := snap.Consistent(); err != nil {
+		return err
+	}
+	return cache.SetSnapshot(context.Background(), "test-id", snap)
 }

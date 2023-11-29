@@ -6,20 +6,25 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	bolt "go.etcd.io/bbolt"
+	"net"
 	"net/http"
 )
 
 const ListenersBucket = "Listeners"
 
 type listenerCtrl struct {
-	db *bolt.DB
+	db      *bolt.DB
+	channel chan struct{}
 }
 
 type Listener struct {
-	Id       string `json:"id,omitempty"`
-	Port     uint16 `json:"port"`
-	Protocol string `json:"protocol,omitempty"`
-	//Tls      tls.Config `json:"tls,omitempty"`
+	Id        string `json:"id,omitempty"`
+	Name      string `json:"name"`
+	IpAddress net.IP `json:"ip_address,omitempty"`
+	Port      uint16 `json:"port"`
+	Protocol  string `json:"protocol,omitempty"`
+
+	SslCertificate string `json:"ssl_certificate,omitempty"`
 
 	Rules []Rule `json:"rules"`
 }
@@ -63,8 +68,8 @@ type Condition struct {
 	SourceIp          []string `json:"source_ip,omitempty"`
 }
 
-func registerListenerRoutes(r *gin.Engine, db *bolt.DB) {
-	ctrl := listenerCtrl{db}
+func registerListenerRoutes(r *gin.Engine, db *bolt.DB, channel chan struct{}) {
+	ctrl := listenerCtrl{db, channel}
 	l := r.Group("/listeners")
 	l.GET("", ctrl.list)
 	l.POST("", ctrl.create)
@@ -152,6 +157,7 @@ func (ctrl *listenerCtrl) create(c *gin.Context) {
 		return
 	}
 
+	ctrl.channel <- struct{}{}
 	c.JSON(http.StatusOK, gin.H{"listener": input})
 }
 
@@ -179,6 +185,7 @@ func (ctrl *listenerCtrl) update(c *gin.Context) {
 		return
 	}
 
+	ctrl.channel <- struct{}{}
 	c.JSON(http.StatusOK, gin.H{"listener": input})
 }
 
@@ -192,5 +199,6 @@ func (ctrl *listenerCtrl) delete(c *gin.Context) {
 		return
 	}
 
+	ctrl.channel <- struct{}{}
 	c.Status(http.StatusNoContent)
 }
