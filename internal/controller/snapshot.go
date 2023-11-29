@@ -18,48 +18,34 @@ import (
 )
 
 type SnapshotInfo struct {
-	Version                string
-	Listeners              []*api.Listener
-	TargetGroups           []*api.TargetGroup
-	TargetGroupAttachments []*api.TargetGroupAttachment
-	Certificates           []*api.Certificate
+	Version      string
+	Listeners    []*api.Listener
+	TargetGroups []*api.TargetGroup
+	Certificates []*api.Certificate
 }
 
-func toClusters(targetGroups []*api.TargetGroup, attachments []*api.TargetGroupAttachment) []types.Resource {
+func toClusters(targetGroups []*api.TargetGroup) []types.Resource {
 	var result []types.Resource
 	for _, tg := range targetGroups {
-		targetGroupAttachments := getTargetGroupAttachments(tg.Id, attachments)
-		result = append(result, toCluster(tg, targetGroupAttachments))
+		result = append(result, toCluster(tg))
 	}
 	return result
 }
 
-// TODO: Fairly ineffecient. We should maybe prebuild the attachment mapping
-func getTargetGroupAttachments(targetGroupId string, attachments []*api.TargetGroupAttachment) []*api.TargetGroupAttachment {
-	var result []*api.TargetGroupAttachment
-	for _, attachment := range attachments {
-		if attachment.TargetGroupId != targetGroupId {
-			continue
-		}
-		result = append(result, attachment)
-	}
-	return result
-}
-
-func toCluster(targetGroup *api.TargetGroup, attachments []*api.TargetGroupAttachment) *clusterv3.Cluster {
+func toCluster(targetGroup *api.TargetGroup) *clusterv3.Cluster {
 	return &clusterv3.Cluster{
 		Name:                 targetGroup.Name,
 		ConnectTimeout:       durationpb.New(5 * time.Second),
 		ClusterDiscoveryType: &clusterv3.Cluster_Type{Type: clusterv3.Cluster_LOGICAL_DNS},
 		LbPolicy:             clusterv3.Cluster_ROUND_ROBIN,
-		LoadAssignment:       toEndpoints(targetGroup, attachments),
+		LoadAssignment:       toEndpoints(targetGroup),
 		DnsLookupFamily:      clusterv3.Cluster_V4_ONLY,
 	}
 }
 
-func toEndpoints(targetGroup *api.TargetGroup, attachments []*api.TargetGroupAttachment) *endpointv3.ClusterLoadAssignment {
+func toEndpoints(targetGroup *api.TargetGroup) *endpointv3.ClusterLoadAssignment {
 	var lbEndpoints []*endpointv3.LbEndpoint
-	for _, attachment := range attachments {
+	for _, attachment := range targetGroup.Attachments {
 		lbEndpoint := &endpointv3.LbEndpoint{
 			HostIdentifier: &endpointv3.LbEndpoint_Endpoint{
 				Endpoint: &endpointv3.Endpoint{
@@ -87,34 +73,45 @@ func toEndpoints(targetGroup *api.TargetGroup, attachments []*api.TargetGroupAtt
 	}
 }
 
-func toRoutes() []types.Resource {
-	return []types.Resource{toRoute()}
+func toRoutes(targetGroups []*api.TargetGroup) []types.Resource {
+	var result []types.Resource
+	for _, targetGroup := range targetGroups {
+		result = append(result, toRoute(targetGroup))
+	}
+	return result
 }
 
-func toRoute() *routev3.RouteConfiguration {
+func toRoute(targetGroup *api.TargetGroup) *routev3.RouteConfiguration {
+	var routes []*routev3.Route
+	if len(targetGroup.Attachments) == 0 {
+		routes = []*routev3.Route{defaultRoute(targetGroup)}
+	} else {
+		// TODO: Generate routes
+	}
 	return &routev3.RouteConfiguration{
 		Name: "local_route",
 		VirtualHosts: []*routev3.VirtualHost{{
 			Name:    "local_service",
 			Domains: []string{"*"},
-			Routes: []*routev3.Route{{
-				Match: &routev3.RouteMatch{
-					PathSpecifier: &routev3.RouteMatch_Prefix{
-						Prefix: "/",
-					},
-				},
-				Action: &routev3.Route_Route{
-					Route: &routev3.RouteAction{
-						ClusterSpecifier: &routev3.RouteAction_Cluster{
-							Cluster: "cluster-0",
-						},
-						HostRewriteSpecifier: &routev3.RouteAction_HostRewriteLiteral{
-							HostRewriteLiteral: "127.0.0.1",
-						},
-					},
-				},
-			}},
+			Routes:  routes,
 		}},
+	}
+}
+
+func defaultRoute(targetGroup *api.TargetGroup) *routev3.Route {
+	return &routev3.Route{
+		Match: &routev3.RouteMatch{
+			PathSpecifier: &routev3.RouteMatch_Prefix{
+				Prefix: "/",
+			},
+		},
+		Action: &routev3.Route_Route{
+			Route: &routev3.RouteAction{
+				ClusterSpecifier: &routev3.RouteAction_Cluster{
+					Cluster: targetGroup.Name,
+				},
+			},
+		},
 	}
 }
 
@@ -190,8 +187,8 @@ func toHttpListener(listener *api.Listener) *listenerv3.Listener {
 func generateSnapshot(info *SnapshotInfo) (*cachev3.Snapshot, error) {
 	return cachev3.NewSnapshot(info.Version,
 		map[resourcev3.Type][]types.Resource{
-			resourcev3.ClusterType:  toClusters(info.TargetGroups, info.TargetGroupAttachments),
-			resourcev3.RouteType:    toRoutes(),
+			resourcev3.ClusterType:  toClusters(info.TargetGroups),
+			resourcev3.RouteType:    toRoutes(info.TargetGroups),
 			resourcev3.ListenerType: toListeners(info.Listeners),
 		},
 	)

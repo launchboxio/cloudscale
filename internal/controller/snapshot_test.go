@@ -3,8 +3,7 @@ package controller
 import (
 	"fmt"
 	"github.com/launchboxio/cloudscale/internal/api"
-	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v3"
+	"github.com/stretchr/testify/assert"
 	"net"
 	"testing"
 )
@@ -22,23 +21,18 @@ func Test_Snapshot(t *testing.T) {
 			{
 				Id:   "yyyyyyy-yy-yy-yyyyy",
 				Name: "test-target-group",
-			},
-		},
-		TargetGroupAttachments: []*api.TargetGroupAttachment{
-			{
-				Id:            "zzzzzzz-zz-zz-zzzzz",
-				TargetGroupId: "yyyyyyy-yy-yy-yyyyy",
-				IpAddress:     net.ParseIP("172.10.0.1"),
-				Port:          3000,
+				Attachments: []api.TargetGroupAttachment{
+					{
+						Id:        "zzzzzzz-zz-zz-zzzzz",
+						IpAddress: net.ParseIP("172.10.0.1"),
+						Port:      3000,
+					},
+				},
 			},
 		},
 	}
-	snapshot, _ := generateSnapshot(info)
+	snapshot, err := generateSnapshot(info)
 	fmt.Println(snapshot)
-
-	out, err := yaml.Marshal(snapshot.VersionMap)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(out)
+	assert.Nil(t, err)
+	assert.NoError(t, snapshot.Consistent())
 }

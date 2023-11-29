@@ -8,8 +8,9 @@ import (
 
 const (
 	TargetGroupsBucket = "TargetGroups"
-	CertificateBucket  = "Certificates"
-	ListenersBucket    = "Listeners"
+	//TargetGroupAttachmentsBucket = "TargetGroupAttachments"
+	CertificateBucket = "Certificates"
+	ListenersBucket   = "Listeners"
 )
 
 type Service struct {
@@ -33,6 +34,9 @@ func (s *Service) Init() error {
 	if _, err := tx.CreateBucketIfNotExists([]byte(TargetGroupsBucket)); err != nil {
 		return err
 	}
+	//if _, err := tx.CreateBucketIfNotExists([]byte(TargetGroupAttachmentsBucket)); err != nil {
+	//	return err
+	//}
 	if _, err := tx.CreateBucketIfNotExists([]byte(CertificateBucket)); err != nil {
 		return err
 	}
@@ -242,6 +246,74 @@ func (s *Service) DestroyListener(listenerId string) error {
 	}
 	return err
 }
+
+//
+//func (s *Service) ListTargetGroupAttachments() ([]*TargetGroupAttachment, error) {
+//	var attachments []*TargetGroupAttachment
+//	err := s.readAll(TargetGroupAttachmentsBucket, func(k, v []byte) error {
+//		var attachment *TargetGroupAttachment
+//		if err := json.Unmarshal(v, &attachment); err != nil {
+//			return err
+//		}
+//		attachment.Id = string(k)
+//		attachments = append(attachments, attachment)
+//		return nil
+//	})
+//	return attachments, err
+//}
+//
+//func (s *Service) GetTargetGroupAttachment(attachmentId string) (*TargetGroupAttachment, error) {
+//	var attachment *TargetGroupAttachment
+//	data, err := s.getRecord(TargetGroupAttachmentsBucket, attachmentId)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	err = json.Unmarshal(data, attachment)
+//	return attachment, err
+//}
+//
+//func (s *Service) CreateTargetGroupAttachment(attachment *TargetGroupAttachment) (*TargetGroupAttachment, error) {
+//	attachment.Id = uuid.New().String()
+//	err := s.Db.Update(func(tx *bbolt.Tx) error {
+//		data, err := json.Marshal(attachment)
+//		if err != nil {
+//			return err
+//		}
+//		return tx.Bucket([]byte(TargetGroupAttachmentsBucket)).Put([]byte(attachment.Id), data)
+//	})
+//	if err != nil {
+//		return nil, err
+//	}
+//	s.emitUpdate()
+//	return attachment, nil
+//}
+//
+//func (s *Service) UpdateTargetGroupAttachment(attachment *TargetGroupAttachment) (*TargetGroupAttachment, error) {
+//	err := s.Db.Update(func(tx *bbolt.Tx) error {
+//		data, err := json.Marshal(attachment)
+//		if err != nil {
+//			return err
+//		}
+//
+//		return tx.Bucket([]byte(TargetGroupAttachmentsBucket)).Put([]byte(attachment.Id), data)
+//	})
+//	if err != nil {
+//		return nil, err
+//	}
+//	s.emitUpdate()
+//	return attachment, nil
+//}
+//
+//func (s *Service) DestroyTargetGroupAttachment(attachmentId string) error {
+//	err := s.Db.Update(func(tx *bbolt.Tx) error {
+//		return tx.Bucket([]byte(TargetGroupAttachmentsBucket)).Delete([]byte(attachmentId))
+//	})
+//	if err == nil {
+//		s.emitUpdate()
+//	}
+//	return err
+//}
 
 func (s *Service) readAll(bucket string, f func(k, v []byte) error) error {
 	return s.Db.View(func(tx *bbolt.Tx) error {

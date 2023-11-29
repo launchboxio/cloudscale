@@ -11,15 +11,15 @@ type targetGroupCtrl struct {
 }
 
 type TargetGroup struct {
-	Id   string `json:"id"`
-	Name string `json:"name"`
+	Id          string                  `json:"id"`
+	Name        string                  `json:"name"`
+	Attachments []TargetGroupAttachment `json:"attachments"`
 }
 
 type TargetGroupAttachment struct {
-	Id            string `json:"id"`
-	TargetGroupId string `json:"target_group_id"`
-	IpAddress     net.IP `json:"ip_address"`
-	Port          uint16 `json:"port"`
+	Id        string `json:"id"`
+	IpAddress net.IP `json:"ip_address"`
+	Port      uint16 `json:"port"`
 }
 
 func registerTargetGroupRoutes(r *gin.Engine, db *Service) {

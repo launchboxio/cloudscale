@@ -2,15 +2,13 @@ package controller
 
 import (
 	"context"
-	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	"fmt"
 	serverv3 "github.com/envoyproxy/go-control-plane/pkg/server/v3"
 	"github.com/launchboxio/cloudscale/internal/api"
 	log "github.com/sirupsen/logrus"
+	bolt "go.etcd.io/bbolt"
 	"google.golang.org/grpc"
 	"net"
-	"sync"
-
-	bolt "go.etcd.io/bbolt"
 
 	discoverygrpc "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
@@ -26,76 +24,6 @@ const (
 var (
 	cache cachev3.SnapshotCache
 )
-
-func (cb *Callbacks) Report() {
-	cb.mu.Lock()
-	defer cb.mu.Unlock()
-	log.WithFields(log.Fields{"fetches": cb.Fetches, "requests": cb.Requests}).Info("cb.Report()  callbacks")
-}
-func (cb *Callbacks) OnStreamOpen(_ context.Context, id int64, typ string) error {
-	log.Infof("OnStreamOpen %d open for %s", id, typ)
-	return nil
-}
-func (cb *Callbacks) OnStreamClosed(id int64, node *corev3.Node) {
-	log.Infof("OnStreamClosed %d closed", id)
-}
-
-func (cb *Callbacks) OnStreamRequest(id int64, r *discoverygrpc.DiscoveryRequest) error {
-	log.Infof("OnStreamRequest %v", r.TypeUrl)
-	cb.mu.Lock()
-	defer cb.mu.Unlock()
-	cb.Requests++
-	if cb.Signal != nil {
-		close(cb.Signal)
-		cb.Signal = nil
-	}
-	return nil
-}
-func (cb *Callbacks) OnStreamResponse(ctx context.Context, id int64, req *discoverygrpc.DiscoveryRequest, resp *discoverygrpc.DiscoveryResponse) {
-	log.Infof("OnStreamResponse... %d   Request [%v],  Response[%v]", id, req.TypeUrl, resp.TypeUrl)
-	cb.Report()
-}
-
-func (cb *Callbacks) OnFetchRequest(ctx context.Context, req *discoverygrpc.DiscoveryRequest) error {
-	log.Infof("OnFetchRequest... Request [%v]", req.TypeUrl)
-	cb.mu.Lock()
-	defer cb.mu.Unlock()
-	cb.Fetches++
-	if cb.Signal != nil {
-		close(cb.Signal)
-		cb.Signal = nil
-	}
-	return nil
-}
-func (cb *Callbacks) OnFetchResponse(req *discoverygrpc.DiscoveryRequest, resp *discoverygrpc.DiscoveryResponse) {
-	log.Infof("OnFetchResponse... Resquest[%v],  Response[%v]", req.TypeUrl, resp.TypeUrl)
-}
-
-func (cb *Callbacks) OnDeltaStreamClosed(id int64, node *corev3.Node) {
-	log.Infof("OnDeltaStreamClosed... %v", id)
-}
-
-func (cb *Callbacks) OnDeltaStreamOpen(ctx context.Context, id int64, typ string) error {
-	log.Infof("OnDeltaStreamOpen... %v  of type %s", id, typ)
-	return nil
-}
-
-func (cb *Callbacks) OnStreamDeltaRequest(i int64, request *discoverygrpc.DeltaDiscoveryRequest) error {
-	log.Infof("OnStreamDeltaRequest... %v  of type %s", i, request)
-	return nil
-}
-
-func (cb *Callbacks) OnStreamDeltaResponse(i int64, request *discoverygrpc.DeltaDiscoveryRequest, response *discoverygrpc.DeltaDiscoveryResponse) {
-	log.Infof("OnStreamDeltaResponse... %v  of type %s", i, request)
-}
-
-type Callbacks struct {
-	Signal   chan struct{}
-	Debug    bool
-	Fetches  int
-	Requests int
-	mu       sync.Mutex
-}
 
 type Options struct {
 	GrpcAddress string
@@ -122,9 +50,11 @@ func (c *Controller) Run() error {
 	if err != nil {
 		return err
 	}
-
 	defer db.Close()
-
+	svc := &api.Service{Db: db}
+	if err = svc.Init(); err != nil {
+		return err
+	}
 	ctx := context.Background()
 	signal := make(chan struct{})
 	event := make(chan struct{})
@@ -134,7 +64,6 @@ func (c *Controller) Run() error {
 		Requests: 0,
 	}
 
-	svc := &api.Service{Db: db}
 	cache = cachev3.NewSnapshotCache(true, cachev3.IDHash{}, nil)
 	srv := serverv3.NewServer(ctx, cache, cb)
 
@@ -205,9 +134,11 @@ func (c *Controller) runSnapshotHandler(ctx context.Context, svc *api.Service, c
 func handleSnapshotEvent(svc *api.Service) error {
 	snap, err := buildSnapshot(svc)
 	if err != nil {
+		fmt.Println("Failed building snapshot")
 		return err
 	}
 	if err := snap.Consistent(); err != nil {
+		fmt.Println("Snapshot not consistent")
 		return err
 	}
 	return cache.SetSnapshot(context.Background(), "test-id", snap)
