@@ -5,6 +5,8 @@ import {Alignment, Button, Navbar} from "@blueprintjs/core";
 
 import '@blueprintjs/core/lib/css/blueprint.css'
 import {useState} from "react";
+import Certificates from "./widgets/certificates";
+import TargetGroups from "./widgets/target_groups";
 function App() {
   const [location, setLocation] = useState("listeners")
   return (
@@ -27,8 +29,8 @@ function App() {
       </Navbar>
       <div>
         {location === 'listeners' && <Listener />}
-        {location === 'certificates' && <h1>Certificates</h1>}
-        {location === 'target-groups' && <h1>Target Groups</h1>}
+        {location === 'certificates' && <Certificates />}
+        {location === 'target-groups' && <TargetGroups />}
       </div>
       {/*<Listener />*/}
     </>

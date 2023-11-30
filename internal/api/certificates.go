@@ -10,10 +10,11 @@ type certificateCtrl struct {
 }
 
 type Certificate struct {
-	Id   string `json:"id,omitempty"`
-	Name string `json:"name"`
-	Cert []byte `json:"cert"`
-	Key  []byte `json:"key"`
+	Id        string `json:"id,omitempty"`
+	Name      string `json:"name"`
+	Cert      string `json:"cert"`
+	Key       string `json:"key"`
+	ManagedBy string `json:"managed_by,omitempty"`
 }
 
 func registerCertificateRoutes(r *gin.Engine, db *Service) {

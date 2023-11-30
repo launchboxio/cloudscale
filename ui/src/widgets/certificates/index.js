@@ -1,49 +1,47 @@
 import React, {useEffect, useState} from "react";
 import axios from "axios";
-import {Button, Card, FormGroup, HTMLTable, InputGroup, Intent, Popover} from "@blueprintjs/core";
+import {Button, Card, FormGroup, HTMLTable, InputGroup, Intent, Popover, TextArea} from "@blueprintjs/core";
 
-const Listener = () => {
-  const [listeners, setListeners] = useState([])
-  const [newListener, setNewListener] = useState({})
+const Certificates = () => {
+  const [certificates, setCertificates] = useState([])
+  const [newCertificate, setNewCertificate] = useState({})
   const [modalOpen, setModalOpen] = useState(false)
 
   useEffect(() => {
-    axios.get("/listeners").then((res) => setListeners(res.data.listeners))
+    axios.get("/certificates").then((res) => setCertificates(res.data.certificates))
   }, [])
 
   const handleSubmit = (event) => {
     event.preventDefault()
 
-    newListener.port = Number(newListener.port)
-    axios.post("/listeners", newListener).then((res) => {
-      setListeners(listeners.concat([res.data.listener]))
-      setNewListener({})
+    axios.post("/certificates", newCertificate).then((res) => {
+      setCertificates(certificates.concat([res.data.certificate]))
+      setNewCertificate({})
       setModalOpen(false)
     })
   }
+
   return (
     <>
       <Card>
-        <h4>Listeners</h4>
+        <h4>Certificates</h4>
         <HTMLTable>
           <thead>
           <tr>
             <th>ID</th>
             <th>Name</th>
-            <th>IP Address</th>
-            <th>Port</th>
-            <th></th>
+            <th>Domain</th>
+            <th>Created At</th>
           </tr>
           </thead>
           <tbody>
-          {listeners.map((item) => {
+          {certificates.map((item) => {
             return (
               <tr>
                 <td>{item.id}</td>
                 <td>{item.name}</td>
-                <td>{item.ip_address}</td>
-                <td>{item.port}</td>
-                <td><button>Delete</button></td>
+                <td>{item.domain}</td>
+                <td>{item.created_at}</td>
               </tr>
             )
           })}
@@ -58,46 +56,46 @@ const Listener = () => {
           <div>
             <form onSubmit={handleSubmit}>
               <FormGroup
-                helperText="The friendly name of your listener"
+                helperText="The friendly name of your certificate"
                 label="Name"
                 labelFor="name-input"
                 labelInfo="(required)"
               >
-                <InputGroup id="name-input" placeholder="My listener" onChange={(event) => {
-                  setNewListener({
-                    ...newListener,
+                <InputGroup id="name-input" placeholder="Certificate name" onChange={(event) => {
+                  setNewCertificate({
+                    ...newCertificate,
                     name: event.target.value
                   })
                 }}/>
               </FormGroup>
               <FormGroup
-                helperText="The IP Address to bind to. Use 0.0.0.0 to bind to all networks"
-                label="IP Address"
-                labelFor="ip-address-input"
+                helperText="The public cert for your certificate"
+                label="Certificate"
+                labelFor="cert-input"
               >
-                <InputGroup id="ip-address-input" placeholder="0.0.0.0" onChange={(event) => {
-                  setNewListener({
-                    ...newListener,
-                    ip_address: event.target.value
+                <TextArea id="cert-input" onChange={(event) => {
+                  setNewCertificate({
+                    ...newCertificate,
+                    cert: event.target.value
                   })
                 }}/>
               </FormGroup>
               <FormGroup
-                helperText="The port to bind to"
-                label="Port"
-                labelFor="port-input"
+                helperText="The private key"
+                label="Private Key"
+                labelFor="key-input"
                 labelInfo="(required)"
               >
-                <InputGroup id="port-input" onChange={(event) => {
-                  setNewListener({
-                    ...newListener,
-                    port: event.target.value
+                <TextArea id="key-input" onChange={(event) => {
+                  setNewCertificate({
+                    ...newCertificate,
+                    key: event.target.value
                   })
                 }}/>
               </FormGroup>
               <Button intent={Intent.PRIMARY} text={"Submit"} type={"submit"} />
               <Button intent={Intent.NONE} text={"Cancel"} onClick={() => {
-                setNewListener({})
+                setNewCertificate({})
                 setModalOpen(false)
               }} />
             </form>
@@ -111,4 +109,4 @@ const Listener = () => {
   )
 }
 
-export default Listener
+export default Certificates
