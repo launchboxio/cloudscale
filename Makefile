@@ -7,3 +7,6 @@ run:
 .PHONY: ui
 ui:
 	cd ui; PUBLIC_URL=/ui npm run build
+
+operator:
+	go run cmd/cloudscale/*.go operator

@@ -21,7 +21,15 @@ const TargetGroups = () => {
 
   const handleCreate = (event) => {
     event.preventDefault()
-    console.log(newTargetGroup)
+    newTargetGroup.attachments.map((item) => {
+      item.port = Number(item.port)
+      return item
+    })
+    axios.post("/target_groups", newTargetGroup).then((res) => {
+      setNewTargetGroup({})
+      setCurrentState("list")
+      setTargetGroups(targetGroups.concat([res.data.target_group]))
+    })
   }
 
   const handleAttachmentChange = (idx, property, value) => {
@@ -105,7 +113,10 @@ const TargetGroups = () => {
               addAttachment()
             }} />
             <Button intent={Intent.PRIMARY} text={"Submit"} type={"submit"} />
-
+            <Button intent={Intent.NONE} text={"Cancel"} onClick={() => {
+              setNewTargetGroup({})
+              setCurrentState("list")
+            }} />
           </form>
         </div>
       )}
