@@ -115,39 +115,62 @@ func defaultRoute(targetGroup *api.TargetGroup) *routev3.Route {
 	}
 }
 
-func toListeners(listeners []*api.Listener) []types.Resource {
+func toListeners(listeners []*api.Listener, clusterName string) []types.Resource {
 	var result []types.Resource
 	for _, listener := range listeners {
-		result = append(result, toHttpListener(listener))
+		result = append(result, toHttpListener(listener, clusterName))
 	}
 	return result
 }
 
-func toHttpListener(listener *api.Listener) *listenerv3.Listener {
+// Sample configuration for grpc xds_cluster
+// Rds: &hcmv3.Rds{
+//				ConfigSource: &corev3.ConfigSource{
+//					ResourceApiVersion: resourcev3.DefaultAPIVersion,
+//					ConfigSourceSpecifier: &corev3.ConfigSource_ApiConfigSource{
+//						ApiConfigSource: &corev3.ApiConfigSource{
+//							TransportApiVersion:       resourcev3.DefaultAPIVersion,
+//							ApiType:                   corev3.ApiConfigSource_GRPC,
+//							SetNodeOnFirstMessageOnly: true,
+//							GrpcServices: []*corev3.GrpcService{{
+//								TargetSpecifier: &corev3.GrpcService_EnvoyGrpc_{
+//									EnvoyGrpc: &corev3.GrpcService_EnvoyGrpc{ClusterName: clusterName},
+//								},
+//							}},
+//						},
+//					},
+//				},
+
+func toHttpListener(listener *api.Listener, clusterName string) *listenerv3.Listener {
 	routerConfig, _ := anypb.New(&routerv3.Router{})
+	virtualHosts := []*routev3.VirtualHost{}
+	if len(listener.Rules) == 0 {
+		virtualHosts = append(virtualHosts, &routev3.VirtualHost{
+			Name:    "default",
+			Domains: []string{"*"},
+			Routes: []*routev3.Route{
+				{
+					Match: &routev3.RouteMatch{
+						PathSpecifier: &routev3.RouteMatch_Prefix{Prefix: "/"},
+					},
+					Action: &routev3.Route_Route{
+						Route: &routev3.RouteAction{
+							ClusterSpecifier: &routev3.RouteAction_Cluster{
+								Cluster: clusterName,
+							},
+						},
+					},
+				},
+			},
+		})
+	}
 	// HTTP filter configuration
 	manager := &hcmv3.HttpConnectionManager{
 		CodecType:  hcmv3.HttpConnectionManager_AUTO,
 		StatPrefix: "http",
-		RouteSpecifier: &hcmv3.HttpConnectionManager_Rds{
-			Rds: &hcmv3.Rds{
-				ConfigSource: &corev3.ConfigSource{
-					ResourceApiVersion: resourcev3.DefaultAPIVersion,
-					ConfigSourceSpecifier: &corev3.ConfigSource_ApiConfigSource{
-						ApiConfigSource: &corev3.ApiConfigSource{
-							TransportApiVersion:       resourcev3.DefaultAPIVersion,
-							ApiType:                   corev3.ApiConfigSource_GRPC,
-							SetNodeOnFirstMessageOnly: true,
-							GrpcServices: []*corev3.GrpcService{{
-								TargetSpecifier: &corev3.GrpcService_EnvoyGrpc_{
-									EnvoyGrpc: &corev3.GrpcService_EnvoyGrpc{ClusterName: "xds_cluster"},
-								},
-							}},
-						},
-					},
-				},
-
-				RouteConfigName: "local_route",
+		RouteSpecifier: &hcmv3.HttpConnectionManager_RouteConfig{
+			RouteConfig: &routev3.RouteConfiguration{
+				VirtualHosts: virtualHosts,
 			},
 		},
 		HttpFilters: []*hcmv3.HttpFilter{{
@@ -162,6 +185,7 @@ func toHttpListener(listener *api.Listener) *listenerv3.Listener {
 
 	return &listenerv3.Listener{
 		Name: listener.Name,
+		// Configure the IP address and port binding for the Listener
 		Address: &corev3.Address{
 			Address: &corev3.Address_SocketAddress{
 				SocketAddress: &corev3.SocketAddress{
@@ -189,7 +213,7 @@ func generateSnapshot(info *SnapshotInfo) (*cachev3.Snapshot, error) {
 		map[resourcev3.Type][]types.Resource{
 			resourcev3.ClusterType:  toClusters(info.TargetGroups),
 			resourcev3.RouteType:    toRoutes(info.TargetGroups),
-			resourcev3.ListenerType: toListeners(info.Listeners),
+			resourcev3.ListenerType: toListeners(info.Listeners, "test"),
 		},
 	)
 }
