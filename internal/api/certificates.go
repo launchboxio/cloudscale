@@ -10,7 +10,7 @@ type certificateCtrl struct {
 }
 
 type Certificate struct {
-	Id        string `json:"id,omitempty"`
+	Base
 	Name      string `json:"name"`
 	Cert      string `json:"cert"`
 	Key       string `json:"key"`

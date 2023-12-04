@@ -1,17 +1,18 @@
 package controller
 
 import (
-	"context"
-	"fmt"
-	serverv3 "github.com/envoyproxy/go-control-plane/pkg/server/v3"
-	"github.com/launchboxio/cloudscale/internal/api"
-	log "github.com/sirupsen/logrus"
-	bolt "go.etcd.io/bbolt"
-	"google.golang.org/grpc"
-	"net"
+  "context"
+  "fmt"
+  serverv3 "github.com/envoyproxy/go-control-plane/pkg/server/v3"
+  "github.com/launchboxio/cloudscale/internal/api"
+  log "github.com/sirupsen/logrus"
+  "google.golang.org/grpc"
+  "gorm.io/driver/sqlite"
+  "gorm.io/gorm"
+  "net"
 
-	discoverygrpc "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
-	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
+  discoverygrpc "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+  cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 )
 
 const (
@@ -46,11 +47,7 @@ type Controller struct {
 func (c *Controller) Run() error {
 
 	// Open our database connection
-	db, err := bolt.Open("./bolt", 0600, nil)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+	db, err := gorm.Open(sqlite.Open("gorm.db"), &gorm.Config{})
 	svc := &api.Service{Db: db}
 	if err = svc.Init(); err != nil {
 		return err

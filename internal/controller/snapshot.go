@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	clusterv3 "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	endpointv3 "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
@@ -8,6 +9,7 @@ import (
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	routerv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/router/v3"
 	hcmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
+	tcpv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/tcp_proxy/v3"
 	"github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 	resourcev3 "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
@@ -27,8 +29,12 @@ type SnapshotInfo struct {
 func toClusters(targetGroups []*api.TargetGroup) []types.Resource {
 	var result []types.Resource
 	for _, tg := range targetGroups {
+		if tg.Enabled == false {
+			continue
+		}
 		result = append(result, toCluster(tg))
 	}
+	fmt.Println(result)
 	return result
 }
 
@@ -82,20 +88,21 @@ func toRoutes(targetGroups []*api.TargetGroup) []types.Resource {
 }
 
 func toRoute(targetGroup *api.TargetGroup) *routev3.RouteConfiguration {
-	var routes []*routev3.Route
-	if len(targetGroup.Attachments) == 0 {
-		routes = []*routev3.Route{defaultRoute(targetGroup)}
-	} else {
-		// TODO: Generate routes
-	}
-	return &routev3.RouteConfiguration{
-		Name: "local_route",
-		VirtualHosts: []*routev3.VirtualHost{{
-			Name:    "local_service",
-			Domains: []string{"*"},
-			Routes:  routes,
-		}},
-	}
+	return &routev3.RouteConfiguration{} //var routes []*routev3.Route
+	//if len(targetGroup.Attachments) == 0 {
+	//	routes = []*routev3.Route{defaultRoute(targetGroup)}
+	//} else {
+	//	// TODO: Generate routes
+	//  routes = []
+	//}
+	//return &routev3.RouteConfiguration{
+	//	Name: "local_route",
+	//	VirtualHosts: []*routev3.VirtualHost{{
+	//		Name:    "local_service",
+	//		Domains: []string{"*"},
+	//		Routes:  routes,
+	//	}},
+	//}
 }
 
 func defaultRoute(targetGroup *api.TargetGroup) *routev3.Route {
@@ -118,8 +125,16 @@ func defaultRoute(targetGroup *api.TargetGroup) *routev3.Route {
 func toListeners(listeners []*api.Listener, clusterName string) []types.Resource {
 	var result []types.Resource
 	for _, listener := range listeners {
-		result = append(result, toHttpListener(listener, clusterName))
+		if listener.Enabled == false {
+			continue
+		}
+		if listener.Type == "layer7" {
+			result = append(result, toHttpListener(listener, clusterName))
+		} else {
+			result = append(result, toTcpListener(listener, clusterName))
+		}
 	}
+	fmt.Println(result)
 	return result
 }
 
@@ -140,6 +155,40 @@ func toListeners(listeners []*api.Listener, clusterName string) []types.Resource
 //						},
 //					},
 //				},
+
+func toTcpListener(listener *api.Listener, clusterName string) *listenerv3.Listener {
+	filter := &tcpv3.TcpProxy{
+		ClusterSpecifier: &tcpv3.TcpProxy_Cluster{
+			Cluster: clusterName,
+		},
+	}
+	pbst, err := anypb.New(filter)
+	if err != nil {
+		panic(err)
+	}
+	return &listenerv3.Listener{
+		Name: listener.Name,
+		Address: &corev3.Address{
+			Address: &corev3.Address_SocketAddress{
+				SocketAddress: &corev3.SocketAddress{
+					Protocol: corev3.SocketAddress_TCP,
+					Address:  listener.IpAddress.String(),
+					PortSpecifier: &corev3.SocketAddress_PortValue{
+						PortValue: uint32(listener.Port),
+					},
+				},
+			},
+		},
+		FilterChains: []*listenerv3.FilterChain{{
+			Filters: []*listenerv3.Filter{{
+				Name: "http-connection-manager",
+				ConfigType: &listenerv3.Filter_TypedConfig{
+					TypedConfig: pbst,
+				},
+			}},
+		}},
+	}
+}
 
 func toHttpListener(listener *api.Listener, clusterName string) *listenerv3.Listener {
 	routerConfig, _ := anypb.New(&routerv3.Router{})
@@ -163,6 +212,23 @@ func toHttpListener(listener *api.Listener, clusterName string) *listenerv3.List
 				},
 			},
 		})
+	} else {
+		var routes []*routev3.Route
+
+		for _, _ = range listener.Rules {
+			action := &routev3.Route_Route{}
+			match := &routev3.RouteMatch{}
+			routes = append(routes, &routev3.Route{
+				Match:  match,
+				Action: action,
+			})
+		}
+		host := &routev3.VirtualHost{
+			Name:    clusterName,
+			Domains: []string{"*"},
+			Routes:  routes,
+		}
+		virtualHosts = append(virtualHosts, host)
 	}
 	// HTTP filter configuration
 	manager := &hcmv3.HttpConnectionManager{
@@ -211,8 +277,8 @@ func toHttpListener(listener *api.Listener, clusterName string) *listenerv3.List
 func generateSnapshot(info *SnapshotInfo) (*cachev3.Snapshot, error) {
 	return cachev3.NewSnapshot(info.Version,
 		map[resourcev3.Type][]types.Resource{
-			resourcev3.ClusterType:  toClusters(info.TargetGroups),
-			resourcev3.RouteType:    toRoutes(info.TargetGroups),
+			resourcev3.ClusterType: toClusters(info.TargetGroups),
+			//resourcev3.RouteType:    toRoutes(info.TargetGroups),
 			resourcev3.ListenerType: toListeners(info.Listeners, "test"),
 		},
 	)

@@ -1,9 +1,10 @@
 package api
 
 import (
-	"github.com/gin-gonic/gin"
-	"net"
-	"net/http"
+  "github.com/gin-gonic/gin"
+  "net"
+  "net/http"
+  "time"
 )
 
 type listenerCtrl struct {
@@ -11,11 +12,13 @@ type listenerCtrl struct {
 }
 
 type Listener struct {
-	Id        string `json:"id,omitempty"`
+	Base
 	Name      string `json:"name"`
 	IpAddress net.IP `json:"ip_address,omitempty"`
 	Port      uint16 `json:"port"`
 	Protocol  string `json:"protocol,omitempty"`
+	Type      string `json:"type"`
+	Enabled   bool   `json:"enabled,omitempty"`
 
 	SslCertificate string `json:"ssl_certificate,omitempty"`
 
@@ -23,21 +26,25 @@ type Listener struct {
 }
 
 type Action struct {
-	Type string `json:"type"`
-	//Forward  ForwardAction  `json:"forward,omitempty"`
-	//Redirect RedirectAction `json:"redirect,omitempty"`
+	Type     string         `json:"type"`
+	Forward  ForwardAction  `json:"forward,omitempty"`
+	Redirect RedirectAction `json:"redirect,omitempty"`
 }
 
-//
-//type ForwardAction struct {
-//	TargetGroup TargetGroupForwardAction `json:"target_group"`
-//	Stickiness  stickiness.Stickiness    `json:"stickiness,omitempty"`
-//}
-//
-//type TargetGroupForwardAction struct {
-//	TargetGroup targetgroup.TargetGroup `json:"target_group"`
-//	Weight      uint8                   `json:"weight,omitempty"`
-//}
+type ForwardAction struct {
+	TargetGroup TargetGroupForwardAction `json:"target_group"`
+	Stickiness  Stickiness               `json:"stickiness,omitempty"`
+}
+
+type Stickiness struct {
+	Enabled  bool          `json:"enabled"`
+	Duration time.Duration `json:"duration"`
+}
+
+type TargetGroupForwardAction struct {
+	TargetGroupId string `json:"id"`
+	Weight        uint8  `json:"weight,omitempty"`
+}
 
 type RedirectAction struct {
 	Host       string `json:"host"`
@@ -49,8 +56,9 @@ type RedirectAction struct {
 }
 
 type Rule struct {
-	Priority uint16 `json:"priority"`
-	Action   Action `json:"action"`
+	Priority  uint16      `json:"priority"`
+	Action    Action      `json:"action"`
+	Condition []Condition `json:"conditions,omitempty"`
 }
 
 type Condition struct {

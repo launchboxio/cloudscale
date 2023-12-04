@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"github.com/google/uuid"
 	"go.etcd.io/bbolt"
+	"gorm.io/gorm"
+	"time"
 )
 
 const (
@@ -14,8 +16,26 @@ const (
 )
 
 type Service struct {
-	Db      *bbolt.DB
+	Db      *gorm.DB
 	channel chan struct{}
+}
+
+type Base struct {
+	gorm.Model
+	ID uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;"`
+
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt *time.Time `sql:"index"`
+}
+
+func (base *Base) BeforeCreate(tx *gorm.DB) error {
+	id, err := uuid.NewUUID()
+	if err != nil {
+		return err
+	}
+	base.ID = id
+	return nil
 }
 
 // SetChannel configures the event channel to emit create / update /delete
@@ -25,25 +45,7 @@ func (s *Service) SetChannel(channel chan struct{}) {
 }
 
 func (s *Service) Init() error {
-	tx, err := s.Db.Begin(true)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	if _, err := tx.CreateBucketIfNotExists([]byte(TargetGroupsBucket)); err != nil {
-		return err
-	}
-	//if _, err := tx.CreateBucketIfNotExists([]byte(TargetGroupAttachmentsBucket)); err != nil {
-	//	return err
-	//}
-	if _, err := tx.CreateBucketIfNotExists([]byte(CertificateBucket)); err != nil {
-		return err
-	}
-	if _, err := tx.CreateBucketIfNotExists([]byte(ListenersBucket)); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return nil
 }
 
 func (s *Service) ListCertificates() ([]*Certificate, error) {
@@ -62,13 +64,10 @@ func (s *Service) ListCertificates() ([]*Certificate, error) {
 
 func (s *Service) GetCertificate(certificateId string) (*Certificate, error) {
 	var certificate *Certificate
-	data, err := s.getRecord(CertificateBucket, certificateId)
-	if err != nil {
+	if err := s.Db.First(&certificate, "id = ?", certificateId).Error; err != nil {
 		return nil, err
 	}
-
-	err = json.Unmarshal(data, certificate)
-	return certificate, err
+	return certificate, nil
 }
 
 func (s *Service) CreateCertificate(certificate *Certificate) (*Certificate, error) {
@@ -129,13 +128,10 @@ func (s *Service) ListTargetGroups() ([]*TargetGroup, error) {
 
 func (s *Service) GetTargetGroup(targetGroupId string) (*TargetGroup, error) {
 	var targetGroup *TargetGroup
-	data, err := s.getRecord(TargetGroupsBucket, targetGroupId)
-	if err != nil {
+	if err := s.Db.First(&targetGroup, "id = ?", targetGroupId).Error; err != nil {
 		return nil, err
 	}
-
-	err = json.Unmarshal(data, targetGroup)
-	return targetGroup, err
+	return targetGroup, nil
 }
 
 func (s *Service) CreateTargetGroup(group *TargetGroup) (*TargetGroup, error) {
@@ -196,13 +192,10 @@ func (s *Service) ListListeners() ([]*Listener, error) {
 
 func (s *Service) GetListener(listenerId string) (*Listener, error) {
 	var listener *Listener
-	data, err := s.getRecord(ListenersBucket, listenerId)
-	if err != nil {
+	if err := s.Db.First(&listener, "id = ?", listenerId).Error; err != nil {
 		return nil, err
 	}
-
-	err = json.Unmarshal(data, listener)
-	return listener, err
+	return listener, nil
 }
 
 func (s *Service) CreateListener(listener *Listener) (*Listener, error) {
@@ -246,74 +239,6 @@ func (s *Service) DestroyListener(listenerId string) error {
 	}
 	return err
 }
-
-//
-//func (s *Service) ListTargetGroupAttachments() ([]*TargetGroupAttachment, error) {
-//	var attachments []*TargetGroupAttachment
-//	err := s.readAll(TargetGroupAttachmentsBucket, func(k, v []byte) error {
-//		var attachment *TargetGroupAttachment
-//		if err := json.Unmarshal(v, &attachment); err != nil {
-//			return err
-//		}
-//		attachment.Id = string(k)
-//		attachments = append(attachments, attachment)
-//		return nil
-//	})
-//	return attachments, err
-//}
-//
-//func (s *Service) GetTargetGroupAttachment(attachmentId string) (*TargetGroupAttachment, error) {
-//	var attachment *TargetGroupAttachment
-//	data, err := s.getRecord(TargetGroupAttachmentsBucket, attachmentId)
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	err = json.Unmarshal(data, attachment)
-//	return attachment, err
-//}
-//
-//func (s *Service) CreateTargetGroupAttachment(attachment *TargetGroupAttachment) (*TargetGroupAttachment, error) {
-//	attachment.Id = uuid.New().String()
-//	err := s.Db.Update(func(tx *bbolt.Tx) error {
-//		data, err := json.Marshal(attachment)
-//		if err != nil {
-//			return err
-//		}
-//		return tx.Bucket([]byte(TargetGroupAttachmentsBucket)).Put([]byte(attachment.Id), data)
-//	})
-//	if err != nil {
-//		return nil, err
-//	}
-//	s.emitUpdate()
-//	return attachment, nil
-//}
-//
-//func (s *Service) UpdateTargetGroupAttachment(attachment *TargetGroupAttachment) (*TargetGroupAttachment, error) {
-//	err := s.Db.Update(func(tx *bbolt.Tx) error {
-//		data, err := json.Marshal(attachment)
-//		if err != nil {
-//			return err
-//		}
-//
-//		return tx.Bucket([]byte(TargetGroupAttachmentsBucket)).Put([]byte(attachment.Id), data)
-//	})
-//	if err != nil {
-//		return nil, err
-//	}
-//	s.emitUpdate()
-//	return attachment, nil
-//}
-//
-//func (s *Service) DestroyTargetGroupAttachment(attachmentId string) error {
-//	err := s.Db.Update(func(tx *bbolt.Tx) error {
-//		return tx.Bucket([]byte(TargetGroupAttachmentsBucket)).Delete([]byte(attachmentId))
-//	})
-//	if err == nil {
-//		s.emitUpdate()
-//	}
-//	return err
-//}
 
 func (s *Service) readAll(bucket string, f func(k, v []byte) error) error {
 	return s.Db.View(func(tx *bbolt.Tx) error {

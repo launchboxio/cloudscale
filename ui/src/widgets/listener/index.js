@@ -21,6 +21,13 @@ const Listener = () => {
       setModalOpen(false)
     })
   }
+
+  const disable = (listenerId) => {
+    axios.post(`/listeners/${listenerId}`, {
+      enabled: false,
+    })
+  }
+
   return (
     <>
       <Card>

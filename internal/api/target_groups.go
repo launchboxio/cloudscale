@@ -11,8 +11,9 @@ type targetGroupCtrl struct {
 }
 
 type TargetGroup struct {
-	Id          string                  `json:"id"`
+	Base
 	Name        string                  `json:"name"`
+	Enabled     bool                    `json:"enabled,omitempty"`
 	Attachments []TargetGroupAttachment `json:"attachments"`
 }
 
@@ -83,7 +84,7 @@ func (ctrl *targetGroupCtrl) update(c *gin.Context) {
 		return
 	}
 
-	input.Id = targetGroupId
+	input.ID = targetGroupId
 	group, err := ctrl.db.UpdateTargetGroup(input)
 
 	if err != nil {
