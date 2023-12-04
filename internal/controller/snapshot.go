@@ -172,7 +172,7 @@ func toTcpListener(listener *api.Listener, clusterName string) *listenerv3.Liste
 			Address: &corev3.Address_SocketAddress{
 				SocketAddress: &corev3.SocketAddress{
 					Protocol: corev3.SocketAddress_TCP,
-					Address:  listener.IpAddress.String(),
+					Address:  listener.IpAddress,
 					PortSpecifier: &corev3.SocketAddress_PortValue{
 						PortValue: uint32(listener.Port),
 					},
@@ -256,7 +256,7 @@ func toHttpListener(listener *api.Listener, clusterName string) *listenerv3.List
 			Address: &corev3.Address_SocketAddress{
 				SocketAddress: &corev3.SocketAddress{
 					Protocol: corev3.SocketAddress_TCP,
-					Address:  listener.IpAddress.String(),
+					Address:  listener.IpAddress,
 					PortSpecifier: &corev3.SocketAddress_PortValue{
 						PortValue: uint32(listener.Port),
 					},

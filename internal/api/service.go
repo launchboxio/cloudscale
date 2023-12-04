@@ -63,6 +63,7 @@ func (s *Service) GetCertificate(certificateId string) (*Certificate, error) {
 
 func (s *Service) CreateCertificate(certificate *Certificate) (*Certificate, error) {
 	result := s.Db.Create(&certificate)
+	s.emitUpdate()
 	return certificate, result.Error
 }
 
@@ -94,6 +95,7 @@ func (s *Service) GetTargetGroup(targetGroupId string) (*TargetGroup, error) {
 
 func (s *Service) CreateTargetGroup(group *TargetGroup) (*TargetGroup, error) {
 	result := s.Db.Create(&group)
+	s.emitUpdate()
 	return group, result.Error
 }
 

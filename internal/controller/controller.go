@@ -66,7 +66,7 @@ func (c *Controller) Run() error {
 	srv := serverv3.NewServer(ctx, cache, cb)
 
 	go func() {
-		if err := c.runApiServer(svc, event); err != nil {
+		if err := c.runApiServer(svc, event, cache); err != nil {
 			log.WithError(err).Error("Failed starting API server")
 		}
 	}()
@@ -103,8 +103,8 @@ func (c *Controller) runXdsServer(ctx context.Context, srv serverv3.Server) {
 	grpcServer.GracefulStop()
 }
 
-func (c *Controller) runApiServer(svc *api.Service, channel chan struct{}) error {
-	srv := api.New(svc, channel)
+func (c *Controller) runApiServer(svc *api.Service, channel chan struct{}, snapshotCache cachev3.SnapshotCache) error {
+	srv := api.New(svc, channel, snapshotCache)
 	return srv.Run(c.options.HttpAddress)
 }
 

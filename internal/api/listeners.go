@@ -2,7 +2,6 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
-	"net"
 	"net/http"
 	"time"
 )
@@ -14,7 +13,7 @@ type listenerCtrl struct {
 type Listener struct {
 	Base
 	Name      string `json:"name"`
-	IpAddress net.IP `json:"ip_address,omitempty"`
+	IpAddress string `json:"ip_address,omitempty"`
 	Port      uint16 `json:"port"`
 	Protocol  string `json:"protocol,omitempty"`
 	Type      string `json:"type"`
