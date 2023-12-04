@@ -18,9 +18,11 @@ type TargetGroup struct {
 }
 
 type TargetGroupAttachment struct {
-	Id        string `json:"id"`
-	IpAddress net.IP `json:"ip_address"`
-	Port      uint16 `json:"port"`
+	Base
+	Id            string `json:"id"`
+	IpAddress     net.IP `json:"ip_address"`
+	Port          uint16 `json:"port"`
+	TargetGroupID string
 }
 
 func registerTargetGroupRoutes(r *gin.Engine, db *Service) {
@@ -84,7 +86,12 @@ func (ctrl *targetGroupCtrl) update(c *gin.Context) {
 		return
 	}
 
-	input.ID = targetGroupId
+	_, err := ctrl.db.GetTargetGroup(targetGroupId)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
 	group, err := ctrl.db.UpdateTargetGroup(input)
 
 	if err != nil {

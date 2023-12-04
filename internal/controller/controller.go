@@ -1,18 +1,19 @@
 package controller
 
 import (
-  "context"
-  "fmt"
-  serverv3 "github.com/envoyproxy/go-control-plane/pkg/server/v3"
-  "github.com/launchboxio/cloudscale/internal/api"
-  log "github.com/sirupsen/logrus"
-  "google.golang.org/grpc"
-  "gorm.io/driver/sqlite"
-  "gorm.io/gorm"
-  "net"
+	"context"
+	"fmt"
+	serverv3 "github.com/envoyproxy/go-control-plane/pkg/server/v3"
+	"github.com/launchboxio/cloudscale/internal/api"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"net"
 
-  discoverygrpc "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
-  cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
+	discoverygrpc "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 )
 
 const (
@@ -92,6 +93,7 @@ func (c *Controller) runXdsServer(ctx context.Context, srv serverv3.Server) {
 	log.Info("Management server listening")
 
 	go func() {
+		reflection.Register(grpcServer)
 		if err = grpcServer.Serve(lis); err != nil {
 			log.WithError(err).Error("Failed running GRPC server")
 		}

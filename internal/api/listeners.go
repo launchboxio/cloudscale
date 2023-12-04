@@ -1,10 +1,10 @@
 package api
 
 import (
-  "github.com/gin-gonic/gin"
-  "net"
-  "net/http"
-  "time"
+	"github.com/gin-gonic/gin"
+	"net"
+	"net/http"
+	"time"
 )
 
 type listenerCtrl struct {
@@ -20,20 +20,21 @@ type Listener struct {
 	Type      string `json:"type"`
 	Enabled   bool   `json:"enabled,omitempty"`
 
-	SslCertificate string `json:"ssl_certificate,omitempty"`
+	SslCertificateID string
+	SslCertificate   Certificate `json:"ssl_certificate,omitempty"`
 
 	Rules []Rule `json:"rules"`
 }
 
 type Action struct {
 	Type     string         `json:"type"`
-	Forward  ForwardAction  `json:"forward,omitempty"`
-	Redirect RedirectAction `json:"redirect,omitempty"`
+	Forward  ForwardAction  `json:"forward,omitempty" gorm:"embedded;embeddedPrefix:forward_"`
+	Redirect RedirectAction `json:"redirect,omitempty" gorm:"embedded;embeddedPrefix:redirect_"`
 }
 
 type ForwardAction struct {
-	TargetGroup TargetGroupForwardAction `json:"target_group"`
-	Stickiness  Stickiness               `json:"stickiness,omitempty"`
+	TargetGroup TargetGroupForwardAction `json:"target_group" gorm:"embedded;embedddedPrefix:target_group_"`
+	Stickiness  Stickiness               `json:"stickiness,omitempty" gorm:"embedded;embeddedPrefix:stickiness_"`
 }
 
 type Stickiness struct {
@@ -56,9 +57,11 @@ type RedirectAction struct {
 }
 
 type Rule struct {
-	Priority  uint16      `json:"priority"`
-	Action    Action      `json:"action"`
-	Condition []Condition `json:"conditions,omitempty"`
+	Base
+	ListenerID string
+	Priority   uint16      `json:"priority"`
+	Action     Action      `json:"action" gorm:"embedded"`
+	Condition  []Condition `json:"conditions,omitempty" gorm:"serializer:json"`
 }
 
 type Condition struct {
@@ -126,7 +129,7 @@ func (ctrl *listenerCtrl) create(c *gin.Context) {
 }
 
 func (ctrl *listenerCtrl) update(c *gin.Context) {
-	listenerId := c.Param("listenerId")
+	//listenerId := c.Param("listenerId")
 	var input *Listener
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -134,7 +137,7 @@ func (ctrl *listenerCtrl) update(c *gin.Context) {
 		return
 	}
 
-	input.Id = listenerId
+	//input.Id = listenerId
 	listener, err := ctrl.db.UpdateListener(input)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

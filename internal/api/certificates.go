@@ -68,7 +68,7 @@ func (ctrl *certificateCtrl) create(c *gin.Context) {
 }
 
 func (ctrl *certificateCtrl) update(c *gin.Context) {
-	certificateId := c.Param("certificateId")
+	//certificateId := c.Param("certificateId")
 	var input *Certificate
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -76,7 +76,7 @@ func (ctrl *certificateCtrl) update(c *gin.Context) {
 		return
 	}
 
-	input.Id = certificateId
+	//input.Id = certificateId
 	certificate, err := ctrl.db.UpdateCertificate(input)
 
 	if err != nil {

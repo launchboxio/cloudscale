@@ -1,18 +1,9 @@
 package api
 
 import (
-	"encoding/json"
 	"github.com/google/uuid"
-	"go.etcd.io/bbolt"
 	"gorm.io/gorm"
 	"time"
-)
-
-const (
-	TargetGroupsBucket = "TargetGroups"
-	//TargetGroupAttachmentsBucket = "TargetGroupAttachments"
-	CertificateBucket = "Certificates"
-	ListenersBucket   = "Listeners"
 )
 
 type Service struct {
@@ -45,21 +36,21 @@ func (s *Service) SetChannel(channel chan struct{}) {
 }
 
 func (s *Service) Init() error {
-	return nil
+	return s.Db.AutoMigrate(
+		&Certificate{},
+		&TargetGroup{},
+		&TargetGroupAttachment{},
+		&Listener{},
+		&Rule{},
+	)
 }
 
 func (s *Service) ListCertificates() ([]*Certificate, error) {
 	var certificates []*Certificate
-	err := s.readAll(CertificateBucket, func(k, v []byte) error {
-		var certificate *Certificate
-		if err := json.Unmarshal(v, &certificate); err != nil {
-			return err
-		}
-		certificate.Id = string(k)
-		certificates = append(certificates, certificate)
-		return nil
-	})
-	return certificates, err
+	if err := s.Db.Find(&certificates).Error; err != nil {
+		return nil, err
+	}
+	return certificates, nil
 }
 
 func (s *Service) GetCertificate(certificateId string) (*Certificate, error) {
@@ -71,188 +62,81 @@ func (s *Service) GetCertificate(certificateId string) (*Certificate, error) {
 }
 
 func (s *Service) CreateCertificate(certificate *Certificate) (*Certificate, error) {
-	certificate.Id = uuid.New().String()
-	err := s.Db.Update(func(tx *bbolt.Tx) error {
-		data, err := json.Marshal(certificate)
-		if err != nil {
-			return err
-		}
-		return tx.Bucket([]byte(CertificateBucket)).Put([]byte(certificate.Id), data)
-	})
-	if err != nil {
-		return nil, err
-	}
-	s.emitUpdate()
-	return certificate, nil
+	result := s.Db.Create(&certificate)
+	return certificate, result.Error
 }
 
 func (s *Service) UpdateCertificate(certificate *Certificate) (*Certificate, error) {
-	err := s.Db.Update(func(tx *bbolt.Tx) error {
-		data, err := json.Marshal(certificate)
-		if err != nil {
-			return err
-		}
-
-		return tx.Bucket([]byte(CertificateBucket)).Put([]byte(certificate.Id), data)
-	})
-	if err != nil {
-		return nil, err
-	}
+	result := s.Db.Save(certificate)
 	s.emitUpdate()
-	return certificate, nil
+	return certificate, result.Error
 }
 
 func (s *Service) DeleteCertificate(certificateId string) error {
-	err := s.Db.Update(func(tx *bbolt.Tx) error {
-		return tx.Bucket([]byte(CertificateBucket)).Delete([]byte(certificateId))
-	})
-	if err == nil {
-		s.emitUpdate()
-	}
-	return err
+	return s.Db.Delete(&Certificate{}, certificateId).Error
 }
 
 func (s *Service) ListTargetGroups() ([]*TargetGroup, error) {
 	var targetGroups []*TargetGroup
-	err := s.readAll(TargetGroupsBucket, func(k, v []byte) error {
-		var targetGroup *TargetGroup
-		if err := json.Unmarshal(v, &targetGroup); err != nil {
-			return err
-		}
-		targetGroup.Id = string(k)
-		targetGroups = append(targetGroups, targetGroup)
-		return nil
-	})
-	return targetGroups, err
+	if err := s.Db.Preload("Attachments").Find(&targetGroups).Error; err != nil {
+		return nil, err
+	}
+	return targetGroups, nil
 }
 
 func (s *Service) GetTargetGroup(targetGroupId string) (*TargetGroup, error) {
 	var targetGroup *TargetGroup
-	if err := s.Db.First(&targetGroup, "id = ?", targetGroupId).Error; err != nil {
+	if err := s.Db.Preload("Attachments").First(&targetGroup, "id = ?", targetGroupId).Error; err != nil {
 		return nil, err
 	}
 	return targetGroup, nil
 }
 
 func (s *Service) CreateTargetGroup(group *TargetGroup) (*TargetGroup, error) {
-	group.Id = uuid.New().String()
-	err := s.Db.Update(func(tx *bbolt.Tx) error {
-		data, err := json.Marshal(group)
-		if err != nil {
-			return err
-		}
-		return tx.Bucket([]byte(TargetGroupsBucket)).Put([]byte(group.Id), data)
-	})
-	if err != nil {
-		return nil, err
-	}
-	s.emitUpdate()
-	return group, nil
+	result := s.Db.Create(&group)
+	return group, result.Error
 }
 
 func (s *Service) UpdateTargetGroup(group *TargetGroup) (*TargetGroup, error) {
-	err := s.Db.Update(func(tx *bbolt.Tx) error {
-		data, err := json.Marshal(group)
-		if err != nil {
-			return err
-		}
-
-		return tx.Bucket([]byte(TargetGroupsBucket)).Put([]byte(group.Id), data)
-	})
-	if err != nil {
-		return nil, err
-	}
+	result := s.Db.Save(group)
 	s.emitUpdate()
-	return group, nil
+	return group, result.Error
 }
 
 func (s *Service) DestroyTargetGroup(targetGroupId string) error {
-	err := s.Db.Update(func(tx *bbolt.Tx) error {
-		return tx.Bucket([]byte(TargetGroupsBucket)).Delete([]byte(targetGroupId))
-	})
-	if err == nil {
-		s.emitUpdate()
-	}
-	return err
+	return s.Db.Delete(&TargetGroup{}, targetGroupId).Error
 }
 
 func (s *Service) ListListeners() ([]*Listener, error) {
 	var listeners []*Listener
-	err := s.readAll(ListenersBucket, func(k, v []byte) error {
-		var listener *Listener
-		if err := json.Unmarshal(v, &listener); err != nil {
-			return err
-		}
-		listener.Id = string(k)
-		listeners = append(listeners, listener)
-		return nil
-	})
-	return listeners, err
+	if err := s.Db.Preload("Rules").Find(&listeners).Error; err != nil {
+		return nil, err
+	}
+	return listeners, nil
 }
 
 func (s *Service) GetListener(listenerId string) (*Listener, error) {
 	var listener *Listener
-	if err := s.Db.First(&listener, "id = ?", listenerId).Error; err != nil {
+	if err := s.Db.Preload("Rules").First(&listener, "id = ?", listenerId).Error; err != nil {
 		return nil, err
 	}
 	return listener, nil
 }
 
 func (s *Service) CreateListener(listener *Listener) (*Listener, error) {
-	listener.Id = uuid.New().String()
-	err := s.Db.Update(func(tx *bbolt.Tx) error {
-		data, err := json.Marshal(listener)
-		if err != nil {
-			return err
-		}
-		return tx.Bucket([]byte(ListenersBucket)).Put([]byte(listener.Id), data)
-	})
-	if err != nil {
-		return nil, err
-	}
+	result := s.Db.Create(&listener)
 	s.emitUpdate()
-	return listener, nil
+	return listener, result.Error
 }
 
 func (s *Service) UpdateListener(listener *Listener) (*Listener, error) {
-	err := s.Db.Update(func(tx *bbolt.Tx) error {
-		data, err := json.Marshal(listener)
-		if err != nil {
-			return err
-		}
-
-		return tx.Bucket([]byte(ListenersBucket)).Put([]byte(listener.Id), data)
-	})
-	if err != nil {
-		return nil, err
-	}
+	result := s.Db.Save(listener)
 	s.emitUpdate()
-	return listener, nil
+	return listener, result.Error
 }
 
 func (s *Service) DestroyListener(listenerId string) error {
-	err := s.Db.Update(func(tx *bbolt.Tx) error {
-		return tx.Bucket([]byte(ListenersBucket)).Delete([]byte(listenerId))
-	})
-	if err == nil {
-		s.emitUpdate()
-	}
-	return err
-}
-
-func (s *Service) readAll(bucket string, f func(k, v []byte) error) error {
-	return s.Db.View(func(tx *bbolt.Tx) error {
-		return tx.Bucket([]byte(bucket)).ForEach(f)
-	})
-}
-
-func (s *Service) getRecord(bucket string, identifier string) ([]byte, error) {
-	var data []byte
-	err := s.Db.View(func(tx *bbolt.Tx) error {
-		data = tx.Bucket([]byte(bucket)).Get([]byte(identifier))
-		return nil
-	})
-	return data, err
+	return s.Db.Delete(&Listener{}, listenerId).Error
 }
 
 func (s *Service) emitUpdate() {

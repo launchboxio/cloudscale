@@ -4,3 +4,5 @@ bolt
 
 ui/build
 ui/node_modules
+
+gorm.db
