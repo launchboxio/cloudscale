@@ -79,6 +79,13 @@ func registerListenerRoutes(r *gin.Engine, db *Service) {
 	l.GET("/:listenerId", ctrl.show)
 	l.PUT("/:listenerId", ctrl.update)
 	l.DELETE("/:listenerId", ctrl.delete)
+
+	rules := l.Group("/:listenerId/rules")
+	rules.GET("", ctrl.listRules)
+	rules.GET("/:ruleId", ctrl.getRule)
+	rules.POST("", ctrl.createRule)
+	rules.PUT("/:ruleId", ctrl.updateRule)
+	rules.DELETE("/:ruleId", ctrl.deleteRule)
 }
 
 func (ctrl *listenerCtrl) list(c *gin.Context) {
@@ -155,4 +162,24 @@ func (ctrl *listenerCtrl) delete(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+func (ctrl *listenerCtrl) listRules(c *gin.Context) {
+
+}
+
+func (ctrl *listenerCtrl) getRule(c *gin.Context) {
+
+}
+
+func (ctrl *listenerCtrl) createRule(c *gin.Context) {
+
+}
+
+func (ctrl *listenerCtrl) updateRule(c *gin.Context) {
+
+}
+
+func (ctrl *listenerCtrl) deleteRule(c *gin.Context) {
+
 }

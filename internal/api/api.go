@@ -15,7 +15,7 @@ type Api struct {
 	snapshotCache cache.SnapshotCache
 }
 
-func New(svc *Service, channel chan struct{}, snapshotCache cache.SnapshotCache) *Api {
+func New(svc *Service, snapshotCache cache.SnapshotCache) *Api {
 	r := gin.Default()
 
 	r.Use(Logger)

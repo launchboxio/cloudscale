@@ -33,6 +33,13 @@ func registerTargetGroupRoutes(r *gin.Engine, db *Service) {
 	c.GET("/:targetGroupId", ctrl.show)
 	c.PUT("/:targetGroupId", ctrl.update)
 	c.DELETE("/:targetGroupId", ctrl.delete)
+
+	att := c.Group("/:targetGroupId/attachments")
+	att.GET("", ctrl.listAttachments)
+	att.GET("/:attachmentId", ctrl.getAttachment)
+	att.POST("", ctrl.createAttachment)
+	att.PUT("/:attachmentId", ctrl.updateAttachment)
+	att.DELETE("/:attachmentId", ctrl.deleteAttachment)
 }
 
 func (ctrl *targetGroupCtrl) list(c *gin.Context) {
@@ -110,4 +117,24 @@ func (ctrl *targetGroupCtrl) delete(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+func (ctrl *targetGroupCtrl) listAttachments(c *gin.Context) {
+
+}
+
+func (ctrl *targetGroupCtrl) getAttachment(c *gin.Context) {
+
+}
+
+func (ctrl *targetGroupCtrl) createAttachment(c *gin.Context) {
+
+}
+
+func (ctrl *targetGroupCtrl) updateAttachment(c *gin.Context) {
+
+}
+
+func (ctrl *targetGroupCtrl) deleteAttachment(c *gin.Context) {
+
 }

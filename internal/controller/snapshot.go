@@ -29,9 +29,9 @@ type SnapshotInfo struct {
 func toClusters(targetGroups []*api.TargetGroup) []types.Resource {
 	var result []types.Resource
 	for _, tg := range targetGroups {
-		if tg.Enabled == false {
-			continue
-		}
+		//if tg.Enabled == false {
+		//	continue
+		//}
 		result = append(result, toCluster(tg))
 	}
 	fmt.Println(result)
@@ -42,7 +42,7 @@ func toCluster(targetGroup *api.TargetGroup) *clusterv3.Cluster {
 	return &clusterv3.Cluster{
 		Name:                 targetGroup.Name,
 		ConnectTimeout:       durationpb.New(5 * time.Second),
-		ClusterDiscoveryType: &clusterv3.Cluster_Type{Type: clusterv3.Cluster_LOGICAL_DNS},
+		ClusterDiscoveryType: &clusterv3.Cluster_Type{Type: clusterv3.Cluster_STRICT_DNS},
 		LbPolicy:             clusterv3.Cluster_ROUND_ROBIN,
 		LoadAssignment:       toEndpoints(targetGroup),
 		DnsLookupFamily:      clusterv3.Cluster_V4_ONLY,
@@ -122,12 +122,35 @@ func defaultRoute(targetGroup *api.TargetGroup) *routev3.Route {
 	}
 }
 
+func makeConfigSource() *corev3.ConfigSource {
+	source := &corev3.ConfigSource{}
+	source.ResourceApiVersion = resourcev3.DefaultAPIVersion
+	source.ConfigSourceSpecifier = &corev3.ConfigSource_ApiConfigSource{
+		ApiConfigSource: &corev3.ApiConfigSource{
+			TransportApiVersion:       resourcev3.DefaultAPIVersion,
+			ApiType:                   corev3.ApiConfigSource_GRPC,
+			SetNodeOnFirstMessageOnly: true,
+			GrpcServices: []*corev3.GrpcService{
+				{
+					TargetSpecifier: &corev3.GrpcService_EnvoyGrpc_{
+						EnvoyGrpc: &corev3.GrpcService_EnvoyGrpc{
+							ClusterName: "xds_cluster",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return source
+}
+
 func toListeners(listeners []*api.Listener, clusterName string) []types.Resource {
 	var result []types.Resource
 	for _, listener := range listeners {
-		if listener.Enabled == false {
-			continue
-		}
+		//if listener.Enabled == false {
+		//	continue
+		//}
 		if listener.Type == "layer7" {
 			result = append(result, toHttpListener(listener, clusterName))
 		} else {
@@ -158,6 +181,7 @@ func toListeners(listeners []*api.Listener, clusterName string) []types.Resource
 
 func toTcpListener(listener *api.Listener, clusterName string) *listenerv3.Listener {
 	filter := &tcpv3.TcpProxy{
+		StatPrefix: "tcp",
 		ClusterSpecifier: &tcpv3.TcpProxy_Cluster{
 			Cluster: clusterName,
 		},
@@ -239,6 +263,12 @@ func toHttpListener(listener *api.Listener, clusterName string) *listenerv3.List
 				VirtualHosts: virtualHosts,
 			},
 		},
+		//RouteSpecifier: &hcmv3.HttpConnectionManager_Rds{
+		//	Rds: &hcmv3.Rds{
+		//		ConfigSource:    makeConfigSource(),
+		//		RouteConfigName: routeName,
+		//	},
+		//},
 		HttpFilters: []*hcmv3.HttpFilter{{
 			Name:       "http-router",
 			ConfigType: &hcmv3.HttpFilter_TypedConfig{TypedConfig: routerConfig},
@@ -275,13 +305,15 @@ func toHttpListener(listener *api.Listener, clusterName string) *listenerv3.List
 }
 
 func generateSnapshot(info *SnapshotInfo) (*cachev3.Snapshot, error) {
-	return cachev3.NewSnapshot(info.Version,
+	result, err := cachev3.NewSnapshot(info.Version,
 		map[resourcev3.Type][]types.Resource{
 			resourcev3.ClusterType: toClusters(info.TargetGroups),
 			//resourcev3.RouteType:    toRoutes(info.TargetGroups),
 			resourcev3.ListenerType: toListeners(info.Listeners, "test"),
 		},
 	)
+
+	return result, err
 }
 
 func buildSnapshot(svc *api.Service) (*cachev3.Snapshot, error) {

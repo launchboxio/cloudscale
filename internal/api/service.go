@@ -138,7 +138,9 @@ func (s *Service) UpdateListener(listener *Listener) (*Listener, error) {
 }
 
 func (s *Service) DestroyListener(listenerId string) error {
-	return s.Db.Delete(&Listener{}, listenerId).Error
+	err := s.Db.Delete(&Listener{}, listenerId).Error
+	s.emitUpdate()
+	return err
 }
 
 func (s *Service) emitUpdate() {

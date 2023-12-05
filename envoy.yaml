@@ -2,33 +2,43 @@ admin:
   access_log_path: /dev/null
   address:
     socket_address:
-      address: 127.0.0.1
+      address: 0.0.0.0
       port_value: 9000
 
 dynamic_resources:
   ads_config:
     api_type: GRPC
     transport_api_version: V3
-    set_node_on_first_message_only: true
     grpc_services:
       - envoy_grpc:
           cluster_name: xds_cluster
-  lds_config:
-    resource_api_version: V3
-    ads: {}
   cds_config:
     resource_api_version: V3
-    ads: {}
+    api_config_source:
+      api_type: GRPC
+      transport_api_version: V3
+      grpc_services:
+        - envoy_grpc:
+            cluster_name: xds_cluster
+  lds_config:
+    resource_api_version: V3
+    api_config_source:
+      api_type: GRPC
+      transport_api_version: V3
+      grpc_services:
+        - envoy_grpc:
+            cluster_name: xds_cluster
+
 
 node:
-  cluster: service_greeter
+  cluster: cloudscale
   id: test-id
 static_resources:
   clusters:
     - connect_timeout: 1s
       http2_protocol_options: {}
       name: xds_cluster
-      type: STATIC
+      type: LOGICAL_DNS
       load_assignment:
         cluster_name: xds_cluster
         endpoints:
@@ -36,7 +46,7 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: 172.17.0.1
+                      address: host.docker.internal
                       port_value: 10001
 
   # secrets:

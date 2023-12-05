@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	serverv3 "github.com/envoyproxy/go-control-plane/pkg/server/v3"
 	"github.com/launchboxio/cloudscale/internal/api"
@@ -12,7 +13,13 @@ import (
 	"gorm.io/gorm"
 	"net"
 
+	clusterservice "github.com/envoyproxy/go-control-plane/envoy/service/cluster/v3"
 	discoverygrpc "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+	endpointservice "github.com/envoyproxy/go-control-plane/envoy/service/endpoint/v3"
+	listenerservice "github.com/envoyproxy/go-control-plane/envoy/service/listener/v3"
+	routeservice "github.com/envoyproxy/go-control-plane/envoy/service/route/v3"
+	runtimeservice "github.com/envoyproxy/go-control-plane/envoy/service/runtime/v3"
+	secretservice "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 )
 
@@ -56,17 +63,18 @@ func (c *Controller) Run() error {
 	ctx := context.Background()
 	signal := make(chan struct{})
 	event := make(chan struct{})
+	svc.SetChannel(event)
 	cb := &Callbacks{
 		Signal:   signal,
 		Fetches:  0,
 		Requests: 0,
 	}
 
-	cache = cachev3.NewSnapshotCache(true, cachev3.IDHash{}, nil)
+	cache = cachev3.NewSnapshotCache(true, cachev3.IDHash{}, log.New())
 	srv := serverv3.NewServer(ctx, cache, cb)
 
 	go func() {
-		if err := c.runApiServer(svc, event, cache); err != nil {
+		if err := c.runApiServer(svc, cache); err != nil {
 			log.WithError(err).Error("Failed starting API server")
 		}
 	}()
@@ -89,7 +97,12 @@ func (c *Controller) runXdsServer(ctx context.Context, srv serverv3.Server) {
 	}
 
 	discoverygrpc.RegisterAggregatedDiscoveryServiceServer(grpcServer, srv)
-
+	endpointservice.RegisterEndpointDiscoveryServiceServer(grpcServer, srv)
+	clusterservice.RegisterClusterDiscoveryServiceServer(grpcServer, srv)
+	routeservice.RegisterRouteDiscoveryServiceServer(grpcServer, srv)
+	listenerservice.RegisterListenerDiscoveryServiceServer(grpcServer, srv)
+	secretservice.RegisterSecretDiscoveryServiceServer(grpcServer, srv)
+	runtimeservice.RegisterRuntimeDiscoveryServiceServer(grpcServer, srv)
 	log.Info("Management server listening")
 
 	go func() {
@@ -103,8 +116,8 @@ func (c *Controller) runXdsServer(ctx context.Context, srv serverv3.Server) {
 	grpcServer.GracefulStop()
 }
 
-func (c *Controller) runApiServer(svc *api.Service, channel chan struct{}, snapshotCache cachev3.SnapshotCache) error {
-	srv := api.New(svc, channel, snapshotCache)
+func (c *Controller) runApiServer(svc *api.Service, snapshotCache cachev3.SnapshotCache) error {
+	srv := api.New(svc, snapshotCache)
 	return srv.Run(c.options.HttpAddress)
 }
 
@@ -132,6 +145,7 @@ func (c *Controller) runSnapshotHandler(ctx context.Context, svc *api.Service, c
 
 func handleSnapshotEvent(svc *api.Service) error {
 	snap, err := buildSnapshot(svc)
+	fmt.Println(snap)
 	if err != nil {
 		fmt.Println("Failed building snapshot")
 		return err
@@ -140,5 +154,7 @@ func handleSnapshotEvent(svc *api.Service) error {
 		fmt.Println("Snapshot not consistent")
 		return err
 	}
+	t, _ := json.MarshalIndent(snap, "", "  ")
+	log.Infof("will serve snapshot %s", t)
 	return cache.SetSnapshot(context.Background(), "test-id", snap)
 }
