@@ -1,8 +1,9 @@
 package main
 
 import (
-  "github.com/spf13/cobra"
-  "log"
+	"github.com/launchboxio/cloudscale/internal/cmd"
+	"github.com/spf13/cobra"
+	"log"
 )
 
 var rootCmd = &cobra.Command{
@@ -11,6 +12,10 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 
 	},
+}
+
+func init() {
+	rootCmd.AddCommand(cmd.ApiCmd)
 }
 
 func main() {

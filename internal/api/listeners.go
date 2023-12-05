@@ -13,14 +13,14 @@ type listenerCtrl struct {
 type Listener struct {
 	Base
 	Name      string `json:"name"`
-	IpAddress string `json:"ip_address,omitempty"`
-	Port      uint16 `json:"port"`
+	IpAddress string `json:"ip_address" gorm:"index:hostname,unique"`
+	Port      uint16 `json:"port" gorm:"index:hostname,unique"`
 	Protocol  string `json:"protocol,omitempty"`
 	Type      string `json:"type"`
 	Enabled   bool   `json:"enabled,omitempty"`
 
-	SslCertificateID string
-	SslCertificate   Certificate `json:"ssl_certificate,omitempty"`
+	SslCertificateID string       `json:"ssl_certificate_id,omitempty"`
+	SslCertificate   *Certificate `json:"ssl_certificate,omitempty"`
 
 	Rules []Rule `json:"rules"`
 }
@@ -165,21 +165,53 @@ func (ctrl *listenerCtrl) delete(c *gin.Context) {
 }
 
 func (ctrl *listenerCtrl) listRules(c *gin.Context) {
+	listener, err := ctrl.db.GetListener(c.Param("listenerId"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
+	c.JSON(http.StatusOK, gin.H{"rules": listener.Rules})
 }
 
 func (ctrl *listenerCtrl) getRule(c *gin.Context) {
+	ruleId := c.Param("ruleId")
+	listener, err := ctrl.db.GetListener(c.Param("listenerId"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
+	for _, rule := range listener.Rules {
+		if rule.ID.String() == ruleId {
+			c.JSON(http.StatusOK, gin.H{"rule": rule})
+			return
+		}
+	}
+
+	c.JSON(http.StatusNotFound, gin.H{})
 }
 
 func (ctrl *listenerCtrl) createRule(c *gin.Context) {
-
+	//listener, err := ctrl.db.GetListener(c.Param("listenerId"))
+	//if err != nil {
+	//	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	//	return
+	//}
 }
 
 func (ctrl *listenerCtrl) updateRule(c *gin.Context) {
-
+	//listener, err := ctrl.db.GetListener(c.Param("listenerId"))
+	//if err != nil {
+	//	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	//	return
+	//}
 }
 
 func (ctrl *listenerCtrl) deleteRule(c *gin.Context) {
-
+	//listener, err := ctrl.db.GetListener(c.Param("listenerId"))
+	//if err != nil {
+	//	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	//	return
+	//}
 }

@@ -12,12 +12,11 @@ type Service struct {
 }
 
 type Base struct {
-	gorm.Model
 	ID uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;"`
 
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt *time.Time `sql:"index"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	DeletedAt *time.Time `sql:"index" json:"deleted_at"`
 }
 
 func (base *Base) BeforeCreate(tx *gorm.DB) error {
@@ -138,7 +137,7 @@ func (s *Service) UpdateListener(listener *Listener) (*Listener, error) {
 }
 
 func (s *Service) DestroyListener(listenerId string) error {
-	err := s.Db.Delete(&Listener{}, listenerId).Error
+	err := s.Db.Delete(&Listener{}, "id = ?", listenerId).Error
 	s.emitUpdate()
 	return err
 }

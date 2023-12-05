@@ -5,4 +5,9 @@ services:
     network_mode: host
     volumes:
       - ./envoy.yaml:/etc/envoy/envoy.yaml
-    command: envoy -c /etc/envoy/envoy.yaml
+    command: envoy -c /etc/envoy/envoy.yaml -l debug
+
+  echo:
+    image: ealen/echo-server:0.8.12
+    ports:
+      - 8080:80
