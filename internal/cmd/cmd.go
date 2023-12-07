@@ -1,11 +1,11 @@
 package cmd
 
 import (
-	"encoding/json"
-	"fmt"
-	"github.com/launchboxio/cloudscale/sdk"
-	"github.com/spf13/cobra"
-	"log"
+  "encoding/json"
+  "fmt"
+  "github.com/launchboxio/cloudscale/sdk"
+  "github.com/spf13/cobra"
+  "log"
 )
 
 var client *sdk.Client

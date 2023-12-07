@@ -3,7 +3,7 @@ package cmd
 import "github.com/spf13/cobra"
 
 var targetGroupsCmd = &cobra.Command{
-	Use:   "target-groups",
+	Use:   "targetgroups",
 	Short: "Interact with CloudScale target groups / clusters",
 }
 

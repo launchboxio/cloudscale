@@ -1,6 +1,8 @@
 package sdk
 
-import "github.com/launchboxio/cloudscale/internal/api"
+import (
+	"github.com/launchboxio/cloudscale/internal/api"
+)
 
 type Listeners struct {
 	*Client
@@ -15,11 +17,11 @@ type ListenerResponse struct {
 }
 
 type CreateListenerInput struct {
-	Name      string `json:"name"`
-	IpAddress string `json:"ip_address"`
-	Port      uint16 `json:"port"`
-	Type      string `json:"type,omitempty"`
-	Protocol  string `json:"protocol,omitempty"`
+	Name      string `json:"name" flag:"name"`
+	IpAddress string `json:"ip_address" flag:"ip-address"`
+	Port      uint16 `json:"port" flag:"port"`
+	Type      string `json:"type,omitempty" flag:"type"`
+	Protocol  string `json:"protocol,omitempty" flag:"protocol,omitempty"`
 }
 
 func (l *Listeners) List() (ListenersList, error) {
