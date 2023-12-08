@@ -118,12 +118,8 @@ func (s *Service) AddTargetGroupAttachment(targetGroupId string, attachment *Tar
 }
 
 func (s *Service) RemoveTargetGroupAttachment(targetGroupId string, attachmentId string) error {
-	var targetGroup *TargetGroup
-	if err := s.Db.Preload("Attachments").First(&targetGroup, "id = ?", targetGroupId).Error; err != nil {
-		return err
-	}
-
-	return s.Db.Unscoped().Model(targetGroup).Association("Attachments").Delete(&TargetGroupAttachment{ID: attachmentId})
+	var targetGroupAttachment *TargetGroupAttachment
+	return s.Db.Where("id = ?", attachmentId).Where("target_group_id = ?", targetGroupId).Unscoped().Delete(&targetGroupAttachment).Error
 }
 
 func (s *Service) ListListeners() ([]*Listener, error) {
