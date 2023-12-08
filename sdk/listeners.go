@@ -24,6 +24,12 @@ type CreateListenerInput struct {
 	Protocol  string `json:"protocol,omitempty" flag:"protocol,omitempty"`
 }
 
+type CreateListenerRuleInput struct {
+	ListenerId string `json:"-"`
+	Priority   uint16 `json:"priority,omitempty"`
+	//Action   string `json:""`
+}
+
 func (l *Listeners) List() (ListenersList, error) {
 	var listenerList ListenersList
 	_, err := l.http.R().
