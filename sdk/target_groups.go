@@ -1,6 +1,9 @@
 package sdk
 
-import "github.com/launchboxio/cloudscale/internal/api"
+import (
+	"fmt"
+	"github.com/launchboxio/cloudscale/internal/api"
+)
 
 type TargetGroups struct {
 	*Client
@@ -32,6 +35,13 @@ func (t *TargetGroups) AddAttachment(input TargetGroupAttachmentInput) (TargetGr
 	var response TargetGroupResponse
 	_, err := t.http.R().
 		SetResult(&response).
+		SetBody(input).
 		Post("/target_groups/" + input.TargetGroupId + "/attachments")
 	return response, err
+}
+
+func (t *TargetGroups) RemoveAttachment(targetGroupId string, attachmentId string) error {
+	_, err := t.http.R().
+		Delete(fmt.Sprintf("/target_groups/%s/attachments/%s", targetGroupId, attachmentId))
+	return err
 }

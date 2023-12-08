@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/reflection"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"net"
 
 	clusterservice "github.com/envoyproxy/go-control-plane/envoy/service/cluster/v3"
@@ -55,7 +56,9 @@ type Controller struct {
 func (c *Controller) Run() error {
 
 	// Open our database connection
-	db, err := gorm.Open(sqlite.Open("gorm.db"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open("gorm.db"), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Info),
+	})
 	svc := &api.Service{Db: db}
 	if err = svc.Init(); err != nil {
 		return err
@@ -145,7 +148,6 @@ func (c *Controller) runSnapshotHandler(ctx context.Context, svc *api.Service, c
 
 func handleSnapshotEvent(svc *api.Service) error {
 	snap, err := buildSnapshot(svc)
-	fmt.Println(snap)
 	if err != nil {
 		fmt.Println("Failed building snapshot")
 		return err
@@ -155,6 +157,6 @@ func handleSnapshotEvent(svc *api.Service) error {
 		return err
 	}
 	t, _ := json.MarshalIndent(snap, "", "  ")
-	log.Infof("will serve snapshot %s", t)
+	log.Debugf("will serve snapshot %s", t)
 	return cache.SetSnapshot(context.Background(), "test-id", snap)
 }

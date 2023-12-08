@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"fmt"
 	clusterv3 "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	endpointv3 "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
@@ -34,7 +33,6 @@ func toClusters(targetGroups []*api.TargetGroup) []types.Resource {
 		//}
 		result = append(result, toCluster(tg))
 	}
-	fmt.Println(result)
 	return result
 }
 
@@ -59,7 +57,7 @@ func toEndpoints(targetGroup *api.TargetGroup) *endpointv3.ClusterLoadAssignment
 						Address: &corev3.Address_SocketAddress{
 							SocketAddress: &corev3.SocketAddress{
 								Protocol: corev3.SocketAddress_TCP,
-								Address:  attachment.IpAddress.String(),
+								Address:  attachment.IpAddress,
 								PortSpecifier: &corev3.SocketAddress_PortValue{
 									PortValue: uint32(attachment.Port),
 								},
@@ -157,7 +155,6 @@ func toListeners(listeners []*api.Listener, clusterName string) []types.Resource
 			result = append(result, toTcpListener(listener, clusterName))
 		}
 	}
-	fmt.Println(result)
 	return result
 }
 

@@ -14,10 +14,14 @@ func New(endpoint string) *Client {
 	client := resty.New()
 	client.SetBaseURL(endpoint)
 	client.OnAfterResponse(func(client *resty.Client, response *resty.Response) error {
-		if response.StatusCode() == http.StatusInternalServerError {
-			return errors.New("An unexpected error occured")
+		switch response.StatusCode() {
+		case http.StatusInternalServerError:
+			return errors.New("an unexpected error occured")
+		case http.StatusBadRequest:
+			return errors.New(response.String())
+		default:
+			return nil
 		}
-		return nil
 	})
 	return &Client{client}
 }

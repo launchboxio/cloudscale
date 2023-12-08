@@ -2,7 +2,6 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
-	"net"
 	"net/http"
 )
 
@@ -19,9 +18,8 @@ type TargetGroup struct {
 
 type TargetGroupAttachment struct {
 	Base
-	Id            string `json:"id"`
-	IpAddress     net.IP `json:"ip_address"`
-	Port          uint16 `json:"port"`
+	IpAddress     string `json:"ip_address" gorm:"index:attachment_hostname,unique"`
+	Port          uint16 `json:"port" gorm:"index:attachment_hostname,unique"`
 	TargetGroupID string
 }
 
@@ -128,7 +126,25 @@ func (ctrl *targetGroupCtrl) getAttachment(c *gin.Context) {
 }
 
 func (ctrl *targetGroupCtrl) createAttachment(c *gin.Context) {
+	targetGroupId := c.Param("targetGroupId")
 
+	var attachment *TargetGroupAttachment
+	if err := c.ShouldBindJSON(&attachment); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := ctrl.db.AddTargetGroupAttachment(targetGroupId, attachment); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	}
+
+	targetGroup, err := ctrl.db.GetTargetGroup(targetGroupId)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"target_group": targetGroup})
 }
 
 func (ctrl *targetGroupCtrl) updateAttachment(c *gin.Context) {
@@ -136,5 +152,13 @@ func (ctrl *targetGroupCtrl) updateAttachment(c *gin.Context) {
 }
 
 func (ctrl *targetGroupCtrl) deleteAttachment(c *gin.Context) {
+	targetGroupId := c.Param("targetGroupId")
+	attachmentId := c.Param("attachmentId")
 
+	if err := ctrl.db.RemoveTargetGroupAttachment(targetGroupId, attachmentId); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusNoContent, gin.H{})
 }

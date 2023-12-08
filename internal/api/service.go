@@ -108,6 +108,24 @@ func (s *Service) DestroyTargetGroup(targetGroupId string) error {
 	return s.Db.Delete(&TargetGroup{}, targetGroupId).Error
 }
 
+func (s *Service) AddTargetGroupAttachment(targetGroupId string, attachment *TargetGroupAttachment) error {
+	var targetGroup *TargetGroup
+	if err := s.Db.Preload("Attachments").First(&targetGroup, "id = ?", targetGroupId).Error; err != nil {
+		return err
+	}
+
+	return s.Db.Model(targetGroup).Association("Attachments").Append(attachment)
+}
+
+func (s *Service) RemoveTargetGroupAttachment(targetGroupId string, attachmentId string) error {
+	var targetGroup *TargetGroup
+	if err := s.Db.Preload("Attachments").First(&targetGroup, "id = ?", targetGroupId).Error; err != nil {
+		return err
+	}
+
+	return s.Db.Unscoped().Model(targetGroup).Association("Attachments").Delete(&TargetGroupAttachment{ID: attachmentId})
+}
+
 func (s *Service) ListListeners() ([]*Listener, error) {
 	var listeners []*Listener
 	if err := s.Db.Preload("Rules").Find(&listeners).Error; err != nil {
